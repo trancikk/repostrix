@@ -26,21 +26,41 @@ const download = async (fromFileId: string, toPath: string) => {
 bot.on("channel_post", async (ctx) => {
   console.log(ctx.senderChat);
 });
+
+// bot.on(message("photo", "media_group_id"), ctx => {
+//   // These properties are accessible:
+//   ctx.message.photo;
+//   ctx.message.media_group_id;
+
+bot.on(message('video'), async (ctx) => {
+  console.dir(ctx)
+})
+
+bot.on(message('animation'), async (ctx) => {
+  console.dir(ctx)
+})
+
+bot.on(message('text'), async (ctx) => {
+  console.dir(ctx.message.text)
+})
+
 // handler that downloads all photos the bot sees to a photos
 bot.on(message("photo"), async (ctx) => {
   // take the last photosize (highest size)
-  const { file_id } = ctx.message.photo.pop()!;
-  await createPost({
-    assets: [
-      {
-        assetType: AssetType.IMAGE,
-        fileId: file_id,
-      },
-    ],
-    text: "text",
-  });
+  console.dir(ctx.message.photo)
+  // console.dir(ctx)
+  // const { file_id } = ctx.message.photo.pop()!;
+  // await createPost({
+  //   assets: [
+  //     {
+  //       assetType: AssetType.IMAGE,
+  //       fileId: file_id,
+  //     },
+  //   ],
+  //   text: "text",
+  // });
   // const path = `./photos/${file_id}.jpg`;
-  const link = await bot.telegram.getFileLink(file_id);
+  // const link = await bot.telegram.getFileLink(file_id);
 
   // await download(file_id, path);
   // console.log("Downloaded", path);
@@ -55,3 +75,6 @@ async function makeNewPost(channelId: string) {
 }
 
 bot.launch();
+
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
