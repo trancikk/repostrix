@@ -26,3 +26,19 @@ export async function deletePost(id: number) {
     },
   });
 }
+
+export async function registerNewSourceWithTarget(
+  sourceId: number,
+  targetId: number,
+) {
+  return client.sourceChat.create({
+    data: {
+      chatId: sourceId,
+      targets: {
+        create: {
+          channelId: targetId,
+        },
+      },
+    },
+  });
+}

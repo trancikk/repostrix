@@ -19,3 +19,16 @@ model Asset {
   post   Post   @relation(fields: [postId], references: [id])
   postId Int
 }
+
+model SourceChat {
+  id      Int             @id @default(autoincrement())
+  chatId  Int
+  targets TargetChannel[]
+}
+
+model TargetChannel {
+  id           Int        @id @default(autoincrement())
+  channelId    Int
+  SourceChat   SourceChat @relation(fields: [sourceChatId], references: [id])
+  sourceChatId Int
+}
