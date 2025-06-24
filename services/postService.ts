@@ -27,6 +27,18 @@ export async function deletePost(id: number) {
   });
 }
 
+export async function getTargetChannelsBySource(sourceId: number) {
+  const source = await client.sourceChat.findFirst({
+    where: {
+      chatId: sourceId,
+    },
+    include: {
+      targets: true,
+    },
+  });
+  return source?.targets;
+}
+
 export async function registerNewSourceWithTarget(
   sourceId: number,
   targetId: number,

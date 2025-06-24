@@ -1,15 +1,17 @@
 import * as dotenv from "dotenv";
-import { Telegraf } from "telegraf";
-import { message } from "telegraf/filters";
-import { createWriteStream, mkdirSync } from "node:fs";
+import { Context, Telegraf } from "telegraf";
+import { anyOf, message } from "telegraf/filters";
+import { createWriteStream } from "node:fs";
 import { Writable } from "node:stream";
 import {
   createPost,
   getRandomPost,
+  getTargetChannelsBySource,
   registerNewSourceWithTarget,
 } from "$services/postService";
-import { AssetType, PostDto } from "$dto";
+import { AssetDto, AssetType, PostDto } from "$dto";
 import { parseNumber } from "./utils";
+import { Asset } from "@prisma/client";
 
 dotenv.config();
 
@@ -40,9 +42,9 @@ bot.command("register", async (ctx) => {
   }
 });
 
-bot.use(async (ctx, next) => {
-  await next();
-});
+// bot.use(async (ctx, next) => {
+//   await next();
+// });
 // small helper
 const download = async (fromFileId: string, toPath: string) => {
   const link = await bot.telegram.getFileLink(fromFileId);
@@ -50,11 +52,53 @@ const download = async (fromFileId: string, toPath: string) => {
   await res.body!.pipeTo(Writable.toWeb(createWriteStream(toPath)));
 };
 
-// bot.on("message", async (ctx) => {
-//   console.debug(ctx.message.from);
-//   console.debug(ctx.message.video!);
-//   console.debug(ctx);
-// });
+bot.on(
+  anyOf(
+    message("text"),
+    message("photo"),
+    message("video"),
+    message("animation"),
+  ),
+  async (ctx) => {
+    const assets: AssetDto[] = [];
+    const post: PostDto = {
+      assets,
+    };
+    console.dir(ctx);
+    if ("photo" in ctx.message) {
+      const { file_id } = ctx.message.photo.pop()!;
+      assets.push({
+        assetType: AssetType.IMAGE,
+        fileId: file_id,
+      });
+    }
+    if ("video" in ctx.message) {
+      assets.push({
+        fileId: ctx.message.video.file_id,
+        assetType: AssetType.VIDEO,
+      });
+    }
+    if ("animation" in ctx.message) {
+      assets.push({
+        fileId: ctx.message.animation.file_id,
+        assetType: AssetType.ANIMATION,
+      });
+    }
+    if ("text" in ctx.message) {
+      post.text = ctx.message.text;
+    }
+    if ("caption" in ctx.message) {
+      post.text = ctx.message.caption;
+    }
+    // await createPost(post);
+    const targets = await getTargetChannelsBySource(ctx.message.chat.id);
+    if (targets != null) {
+      for (const target of targets) {
+        await makeNewPostFromPostDto(target.channelId.toString(), post, bot);
+      }
+    }
+  },
+);
 
 // bot.on("channel_post", async (ctx) => {
 //   console.log(ctx.senderChat);
@@ -105,6 +149,14 @@ async function makeNewPost(channelId: string) {
   if (post != null) {
     await bot.telegram.sendPhoto(channelId, post.text);
   }
+}
+
+async function makeNewPostFromPostDto(
+  channelId: string,
+  postDto: PostDto,
+  bot: Telegraf<Context>,
+) {
+  await bot.telegram.sendMessage(channelId, postDto.text ?? "");
 }
 
 bot.launch();

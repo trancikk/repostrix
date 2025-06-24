@@ -9,7 +9,7 @@ generator client {
 
 model Post {
   id     Int     @id @default(autoincrement())
-  text   String
+  text   String?
   assets Asset[]
 }
 
@@ -22,13 +22,13 @@ model Asset {
 
 model SourceChat {
   id      Int             @id @default(autoincrement())
-  chatId  Int
+  chatId  BigInt
   targets TargetChannel[]
 }
 
 model TargetChannel {
   id           Int        @id @default(autoincrement())
-  channelId    Int
+  channelId    BigInt
   SourceChat   SourceChat @relation(fields: [sourceChatId], references: [id])
   sourceChatId Int
 }
