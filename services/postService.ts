@@ -7,7 +7,7 @@ const client = new PrismaClient().$extends(prismaRandom());
 export async function createPost(post: PostDto) {
   return client.post.create({
     data: {
-      text: post.text,
+      text: post.text ?? "",
       assets: {
         create: post.assets.map((a) => ({ fileId: a.fileId })),
       },
