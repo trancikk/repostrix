@@ -1,0 +1,7 @@
+﻿services:
+  repostrix:
+    image: repostrix
+    build:
+      context: .
+      dockerfile: repostrix/Dockerfile
+
