@@ -1,8 +1,12 @@
+using Core.Extensions;
+using repostrix.Bot;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-
+builder.Services.ConfigurePersistenceServices(builder.Configuration, builder.Environment.IsDevelopment());
+builder.Services.AddHostedService<Reposter>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
