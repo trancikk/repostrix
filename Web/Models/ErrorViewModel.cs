@@ -1,4 +1,4 @@
-namespace repostrix.Models;
+namespace Web.Models;
 
 public class ErrorViewModel
 {

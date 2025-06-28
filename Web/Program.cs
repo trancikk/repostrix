@@ -1,5 +1,9 @@
 using Core.Extensions;
-using repostrix.Bot;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Web.Bot;
+
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -1,12 +1,11 @@
-﻿using System.Text;
-using Core.Dto.Asset;
+﻿using Core.Dto.Asset;
 using Core.Entity;
 using Core.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace repostrix.Bot;
+namespace Web.Bot;
 
 public class Reposter(PostService postService) : BackgroundService
 {
@@ -29,7 +28,15 @@ public class Reposter(PostService postService) : BackgroundService
         {
             // A message was received
             case UpdateType.Message:
-                await HandleMessage(update.Message!);
+                if (update.Message?.Text != null && update.Message.Text.Contains('/'))
+                {
+                    await HandleCommand(update.Message.From!.Id, update.Message.Text);
+                }
+                else
+                {
+                    await HandleMessage(update.Message!);
+                }
+
                 break;
         }
     }
@@ -42,7 +49,7 @@ public class Reposter(PostService postService) : BackgroundService
     async Task HandleMessage(Message msg)
     {
         var user = msg.From;
-        var text = msg.Text ?? string.Empty;
+        var text = msg.Text ?? msg.Caption ?? string.Empty;
         var chatId = msg.Chat.Id;
         if (user is null)
             return;
@@ -59,6 +66,7 @@ public class Reposter(PostService postService) : BackgroundService
         var asset = new CreateAssetDto
         {
             MediaGroupId = mediaGroupId,
+            Text = text
         };
 
         if (video is not null)
@@ -81,21 +89,18 @@ public class Reposter(PostService postService) : BackgroundService
 
         await postService.AddNewAssetAsync(asset);
         // When we get a command, we react accordingly
-        if (text.StartsWith("/"))
-        {
-            await HandleCommand(chatId, text);
-        }
     }
 
     async Task HandleCommand(long userId, string command)
     {
-        var data = command.Split();
-        var parsedCommand = data[0];
+        var data = command.Split('/');
+        var parsedCommand = data[1];
         if (parsedCommand.Contains('@'))
         {
             parsedCommand = parsedCommand.Split("@")[0];
         }
 
+        Console.WriteLine(parsedCommand);
         await Task.CompletedTask;
     }
 }

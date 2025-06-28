@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using repostrix.Models;
+using Web.Models;
 
-namespace repostrix.Controllers;
+namespace Web.Controllers;
 
 public class HomeController : Controller
 {
