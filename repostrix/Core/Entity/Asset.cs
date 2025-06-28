@@ -9,7 +9,7 @@ public class Asset
     public AssetType AssetType { get; set; }
     public Post Post { get; set; }
     public Guid PostId { get; set; }
-    public int? MediaGroupId { get; set; }
+    public string? MediaGroupId { get; set; }
 }
 
 public enum AssetType

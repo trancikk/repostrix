@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Core.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -39,6 +40,8 @@ public static class PersistenceServicesRegistration
                     Environment.GetEnvironmentVariable("AZURE_SQL_CONNECTIONSTRING"));
             });
         }
+        services.AddScoped<PostService>();
+        services.AddSingleton<PostService>();
 
         return services;
     }
