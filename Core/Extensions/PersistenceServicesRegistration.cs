@@ -42,6 +42,7 @@ public static class PersistenceServicesRegistration
         }
         services.AddScoped<PostService>();
         services.AddSingleton<PostService>();
+        services.AddSingleton<ChannelService>();
 
         return services;
     }

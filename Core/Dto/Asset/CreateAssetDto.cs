@@ -8,4 +8,5 @@ public class CreateAssetDto
     public string FileId { get; set; }
     public string? MediaGroupId { get; set; }
     public string? Text { get; set; }
+    public long SourceChatId { get; set; }
 }

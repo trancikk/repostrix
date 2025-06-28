@@ -1,5 +1,17 @@
-﻿@{
+﻿@using Core.Entity
+@model Chat
+
+@{
     ViewData["Title"] = "Home Page";
+}
+
+@foreach (var item in Model.Posts)
+{
+    <span>@item.Id</span>
+    @foreach (var asset in item.Assets)
+    {
+        <span>@asset.FileId</span>
+    }
 }
 
 <div class="text-center">

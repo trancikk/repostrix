@@ -4,9 +4,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Core.Services;
 
-public class PostService(IDbContextFactory<AppDbContext> dbContextFactory)
+public class PostService(IDbContextFactory<AppDbContext> dbContextFactory, ChannelService channelService)
 {
     private readonly SemaphoreSlim _semaphoreSlim = new(1);
+
+    public async Task<Post?> FindPostById(Guid postId)
+    {
+        var context = await dbContextFactory.CreateDbContextAsync();
+        return await context.Posts.Include(p => p.Assets)
+            .Where(p => p.Id == postId)
+            .FirstOrDefaultAsync();
+    }
 
     public async Task<Post?> FindPostByMediaGroupId(string? mediaGroupId)
     {
@@ -23,10 +31,13 @@ public class PostService(IDbContextFactory<AppDbContext> dbContextFactory)
     public async Task<Asset> AddNewAssetAsync(CreateAssetDto assetDto)
     {
         // await _semaphoreSlim.WaitAsync();
-        var context = await dbContextFactory.CreateDbContextAsync();
+        await using var context = await dbContextFactory.CreateDbContextAsync();
 
+        var existingChat = await channelService.FindChatByChatId(assetDto.SourceChatId, context);
+
+        if (existingChat == null) throw new ArgumentException("Chat ID doesn't exist");
         var post = await FindPostByMediaGroupId(assetDto.MediaGroupId, context)
-                   ?? AddNewPost(context);
+                   ?? AddNewPost(context, existingChat);
         post.Text = assetDto.Text;
         post.MediaGroupId = assetDto.MediaGroupId;
         var asset = new Asset
@@ -34,12 +45,14 @@ public class PostService(IDbContextFactory<AppDbContext> dbContextFactory)
             AssetType = assetDto.AssetType,
             MediaGroupId = assetDto.MediaGroupId,
             FileId = assetDto.FileId,
-            Post = post
+            Post = post,
         };
         context.Assets.Add(asset);
         await context.SaveChangesAsync();
         // _semaphoreSlim.Release();
         return asset;
+
+        //TODO rework
     }
 
     public async Task<Asset> AddNewAssetAsync(Asset asset)
@@ -50,9 +63,12 @@ public class PostService(IDbContextFactory<AppDbContext> dbContextFactory)
         return asset;
     }
 
-    private static Post AddNewPost(AppDbContext context)
+    private static Post AddNewPost(AppDbContext context, Chat chat)
     {
-        var post = new Post();
+        var post = new Post
+        {
+            SourceChat = chat
+        };
         context.Posts.Add(post);
         return post;
     }

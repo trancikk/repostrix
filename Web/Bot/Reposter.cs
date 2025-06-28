@@ -4,12 +4,20 @@ using Core.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Chat = Core.Entity.Chat;
 
 namespace Web.Bot;
 
-public class Reposter(PostService postService) : BackgroundService
+public class Reposter(PostService postService, ChannelService channelService) : BackgroundService
 {
-    public TelegramBotClient Bot { get; set; } = new("8085912035:AAEVtFDBhoDwqhYV9A5WFPqATa5R4vT1VqM");
+    public async Task<string> GetFileUrlAsync(string fileId)
+    {
+        var file = await Bot.GetFile(fileId);
+        return $"https://api.telegram.org/file/bot{Token}/{file.FilePath}";
+    }
+
+    private const string Token = "8085912035:AAEVtFDBhoDwqhYV9A5WFPqATa5R4vT1VqM";
+    public TelegramBotClient Bot { get; set; } = new(Token);
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -30,7 +38,7 @@ public class Reposter(PostService postService) : BackgroundService
             case UpdateType.Message:
                 if (update.Message?.Text != null && update.Message.Text.Contains('/'))
                 {
-                    await HandleCommand(update.Message.From!.Id, update.Message.Text);
+                    await HandleCommand(update.Message);
                 }
                 else
                 {
@@ -91,8 +99,9 @@ public class Reposter(PostService postService) : BackgroundService
         // When we get a command, we react accordingly
     }
 
-    async Task HandleCommand(long userId, string command)
+    async Task HandleCommand(Message msg)
     {
+        var command = msg.Text!;
         var data = command.Split('/');
         var parsedCommand = data[1];
         if (parsedCommand.Contains('@'))
@@ -100,7 +109,60 @@ public class Reposter(PostService postService) : BackgroundService
             parsedCommand = parsedCommand.Split("@")[0];
         }
 
-        Console.WriteLine(parsedCommand);
+        if (parsedCommand.Contains("register"))
+        {
+            var chatId = msg.Chat.Id;
+            var channelId = parsedCommand.Split(' ').ElementAtOrDefault(1);
+            if (channelId is null)
+            {
+                await Bot.SendMessage(chatId, "Please provide channel id");
+            }
+            else
+            {
+                var result = long.TryParse(channelId, out var parsedChannelId);
+                if (!result)
+                {
+                    await Bot.SendMessage(chatId, "Channel ID should be a number!");
+                }
+                else
+                {
+                    await channelService.RegisterNewChannelAsync(chatId, parsedChannelId);
+                    await Bot.SendMessage(chatId, $"Channel {parsedChannelId} registered!");
+                }
+            }
+
+            {
+            }
+        }
+
         await Task.CompletedTask;
+    }
+
+    public async Task SendPost(Post post, ICollection<Channel> channels)
+    {
+        foreach (var channel in channels)
+        {
+            foreach (var asset in post.Assets)
+            {
+                switch (asset.AssetType)
+                {
+                    case AssetType.Image:
+                    {
+                        await Bot.SendPhoto(channel.ChannelId, asset.FileId, caption: post.Text);
+                        break;
+                    }
+                    case AssetType.Video:
+                    {
+                        await Bot.SendVideo(channel.ChannelId, asset.FileId, caption: post.Text);
+                        break;
+                    }
+                    case AssetType.Animation:
+                    {
+                        await Bot.SendAnimation(channel.ChannelId, asset.FileId, caption: post.Text);
+                        break;
+                    }
+                }
+            }
+        }
     }
 }
