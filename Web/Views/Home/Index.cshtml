@@ -11,6 +11,7 @@
         {
             <li class="list-group-item">
                 <h2>Sent from @item.SourceChat.ChatName</h2>
+                Status: <span>@item.Status</span>
                 Text: <span>@item.Text</span>
                 <h3>Assets:</h3>
                 @foreach (var asset in item.Assets)
@@ -23,6 +24,14 @@
                     {
                         <img src="@asset.PublicUrl" width="400" alt="@asset.FileId"/>
                     }
+                }
+                @if (item.Status is not PostStatus.Posted)
+                {
+                    <a class="btn btn-primary" asp-action="SendPost" asp-route-chatId="@item.SourceChat.ChatId"
+                       asp-route-postId="@item.Id">Send
+                    </a>
+                    <a class="btn btn-danger" asp-action="CancelPost" asp-route-postId="@item.Id">Cancel
+                    </a>
                 }
             </li>
         }

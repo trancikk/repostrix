@@ -16,6 +16,37 @@ public class PostService(IDbContextFactory<AppDbContext> dbContextFactory, Chann
             .FirstOrDefaultAsync();
     }
 
+    public async Task<int> ChangePostStatus(Guid postId, PostStatus status)
+    {
+        var context = await dbContextFactory.CreateDbContextAsync();
+        return await context.Posts.Where(post => post.Id == postId).ExecuteUpdateAsync(s =>
+            s.SetProperty(post => post.Status, status));
+    }
+
+    public async Task<int> CancelPostAsync(Guid postId)
+    {
+        await using var context = await dbContextFactory.CreateDbContextAsync();
+        var existingPost = await context.Posts.FindAsync(postId);
+        if (existingPost is null) return 0;
+        existingPost.Status = PostStatus.Canceled;
+        await context.SaveChangesAsync();
+        return 1;
+    }
+
+    public async Task<Post?> GetRandomPostAsync()
+    {
+        await using var context = await dbContextFactory.CreateDbContextAsync();
+        var count = await context.Posts.Where(p => p.Status == PostStatus.Pending)
+            .CountAsync();
+        var randomIndex = new Random().Next(0, count);
+        return await context.Posts.Where(p => p.Status == PostStatus.Pending)
+            .Skip(randomIndex)
+            .Include(p => p.Assets)
+            .Include(p => p.SourceChat)
+            .ThenInclude(c => c.TagetChannels)
+            .FirstOrDefaultAsync();
+    }
+
     public async Task<Post?> FindPostByMediaGroupId(string? mediaGroupId)
     {
         var context = await dbContextFactory.CreateDbContextAsync();

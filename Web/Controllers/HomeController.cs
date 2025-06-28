@@ -3,6 +3,7 @@ using Core;
 using Core.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Web.Bot;
 using Web.Models;
 
 namespace Web.Controllers;
@@ -11,10 +12,25 @@ public class HomeController(
     AppDbContext context,
     ILogger<HomeController> logger,
     PostService postService,
-    ChannelService channelService)
+    ChannelService channelService,
+    BotService botService
+)
     : Controller
 {
     private readonly ILogger<HomeController> _logger;
+
+    [HttpGet]
+    public async Task<IActionResult> SendPost(Guid postId, long chatId)
+    {
+        await botService.SendPostAsync(postId, chatId);
+        return RedirectToAction("Index");
+    }
+
+    public async Task<IActionResult> CancelPost(Guid postId)
+    {
+        await postService.CancelPostAsync(postId);
+        return RedirectToAction("Index");
+    }
 
     public async Task<IActionResult> Index()
     {
