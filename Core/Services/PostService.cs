@@ -45,6 +45,7 @@ public class PostService(IDbContextFactory<AppDbContext> dbContextFactory, Chann
             AssetType = assetDto.AssetType,
             MediaGroupId = assetDto.MediaGroupId,
             FileId = assetDto.FileId,
+            PublicUrl = assetDto.PublicUrl,
             Post = post,
         };
         context.Assets.Add(asset);

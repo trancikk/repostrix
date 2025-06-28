@@ -22,7 +22,7 @@ public class HomeController(
             .Include(c => c.TagetChannels)
             .Include(c => c.Posts)
             .ThenInclude(p => p.Assets)
-            .FirstAsync();
+            .ToListAsync();
         return View(channelsWithPosts);
     }
 

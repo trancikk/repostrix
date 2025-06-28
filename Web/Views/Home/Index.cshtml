@@ -1,20 +1,30 @@
 ﻿@using Core.Entity
-@model Chat
+@model IEnumerable<Chat>
 
 @{
     ViewData["Title"] = "Home Page";
 }
-
-@foreach (var item in Model.Posts)
-{
-    <span>@item.Id</span>
-    @foreach (var asset in item.Assets)
+<ul class="list-group">
+    @foreach (var chat in Model)
     {
-        <span>@asset.FileId</span>
+        @foreach (var item in chat.Posts)
+        {
+            <li class="list-group-item">
+                <h2>Sent from @item.SourceChat.ChatName</h2>
+                Text: <span>@item.Text</span>
+                <h3>Assets:</h3>
+                @foreach (var asset in item.Assets)
+                {
+                    @if (asset.AssetType is AssetType.Video)
+                    {
+                        <video width="400" controls src="@asset.PublicUrl"></video>
+                    }
+                    else
+                    {
+                        <img src="@asset.PublicUrl" width="400" alt="@asset.FileId"/>
+                    }
+                }
+            </li>
+        }
     }
-}
-
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+</ul>

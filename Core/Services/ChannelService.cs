@@ -9,7 +9,7 @@ public class ChannelService(IDbContextFactory<AppDbContext> dbContextFactory)
     {
         return await context.Chats.Where(c => chatId == c.ChatId).FirstOrDefaultAsync();
     }
-    
+
     public async Task<ICollection<Channel>> FindTargetChannelsAsync(long chatId)
     {
         var context = await dbContextFactory.CreateDbContextAsync();
@@ -19,7 +19,7 @@ public class ChannelService(IDbContextFactory<AppDbContext> dbContextFactory)
             .ToListAsync();
     }
 
-    public async Task<Channel> RegisterNewChannelAsync(long chatId, long channelId)
+    public async Task<Channel> RegisterNewChannelAsync(long chatId, long channelId, string chatName)
     {
         var context = await dbContextFactory.CreateDbContextAsync();
         var existingChat = await context.Chats.FirstOrDefaultAsync(c => c.ChatId == chatId);
@@ -36,6 +36,7 @@ public class ChannelService(IDbContextFactory<AppDbContext> dbContextFactory)
             var chat = new Chat
             {
                 ChatId = chatId,
+                ChatName = chatName,
                 TagetChannels = [channel]
             };
             context.Chats.Add(chat);

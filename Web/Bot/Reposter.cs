@@ -17,7 +17,7 @@ public class Reposter(PostService postService, ChannelService channelService) : 
     }
 
     private const string Token = "8085912035:AAEVtFDBhoDwqhYV9A5WFPqATa5R4vT1VqM";
-    public TelegramBotClient Bot { get; set; } = new(Token);
+    private TelegramBotClient Bot { get; set; } = new(Token);
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -59,6 +59,7 @@ public class Reposter(PostService postService, ChannelService channelService) : 
         var user = msg.From;
         var text = msg.Text ?? msg.Caption ?? string.Empty;
         var chatId = msg.Chat.Id;
+        var chatName = msg.Chat.Title;
         if (user is null)
             return;
 
@@ -74,7 +75,8 @@ public class Reposter(PostService postService, ChannelService channelService) : 
         var asset = new CreateAssetDto
         {
             MediaGroupId = mediaGroupId,
-            Text = text
+            Text = text,
+            SourceChatId = chatId
         };
 
         if (video is not null)
@@ -95,7 +97,11 @@ public class Reposter(PostService postService, ChannelService channelService) : 
             asset.FileId = animation.FileId;
         }
 
+        var url = await GetFileUrlAsync(asset.FileId);
+        Console.WriteLine(url);
+        asset.PublicUrl = await GetFileUrlAsync(asset.FileId);
         await postService.AddNewAssetAsync(asset);
+        await Bot.SendMessage(chatId, "Post has been added!");
         // When we get a command, we react accordingly
     }
 
@@ -113,6 +119,7 @@ public class Reposter(PostService postService, ChannelService channelService) : 
         {
             var chatId = msg.Chat.Id;
             var channelId = parsedCommand.Split(' ').ElementAtOrDefault(1);
+            var chatName = msg.Chat.Title ?? string.Empty;
             if (channelId is null)
             {
                 await Bot.SendMessage(chatId, "Please provide channel id");
@@ -126,7 +133,7 @@ public class Reposter(PostService postService, ChannelService channelService) : 
                 }
                 else
                 {
-                    await channelService.RegisterNewChannelAsync(chatId, parsedChannelId);
+                    await channelService.RegisterNewChannelAsync(chatId, parsedChannelId, chatName);
                     await Bot.SendMessage(chatId, $"Channel {parsedChannelId} registered!");
                 }
             }
