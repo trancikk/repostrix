@@ -97,8 +97,6 @@ public class Reposter(PostService postService, ChannelService channelService) : 
             asset.FileId = animation.FileId;
         }
 
-        var url = await GetFileUrlAsync(asset.FileId);
-        Console.WriteLine(url);
         asset.PublicUrl = await GetFileUrlAsync(asset.FileId);
         await postService.AddNewAssetAsync(asset);
         await Bot.SendMessage(chatId, "Post has been added!");
