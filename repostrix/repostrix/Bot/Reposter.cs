@@ -79,7 +79,7 @@ public class Reposter(PostService postService) : BackgroundService
             asset.FileId = animation.FileId;
         }
 
-        await postService.AddNewAssetAsync((Asset)asset);
+        await postService.AddNewAssetAsync(asset);
         // When we get a command, we react accordingly
         if (text.StartsWith("/"))
         {

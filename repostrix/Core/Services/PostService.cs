@@ -6,6 +6,8 @@ namespace Core.Services;
 
 public class PostService(IDbContextFactory<AppDbContext> dbContextFactory)
 {
+    private readonly SemaphoreSlim _semaphoreSlim = new(1);
+
     public async Task<Post?> FindPostByMediaGroupId(string? mediaGroupId)
     {
         var context = await dbContextFactory.CreateDbContextAsync();
@@ -20,12 +22,13 @@ public class PostService(IDbContextFactory<AppDbContext> dbContextFactory)
 
     public async Task<Asset> AddNewAssetAsync(CreateAssetDto assetDto)
     {
+        // await _semaphoreSlim.WaitAsync();
         var context = await dbContextFactory.CreateDbContextAsync();
-        var mediaGroupId = assetDto.MediaGroupId;
 
         var post = await FindPostByMediaGroupId(assetDto.MediaGroupId, context)
                    ?? AddNewPost(context);
         post.Text = assetDto.Text;
+        post.MediaGroupId = assetDto.MediaGroupId;
         var asset = new Asset
         {
             AssetType = assetDto.AssetType,
@@ -35,6 +38,7 @@ public class PostService(IDbContextFactory<AppDbContext> dbContextFactory)
         };
         context.Assets.Add(asset);
         await context.SaveChangesAsync();
+        // _semaphoreSlim.Release();
         return asset;
     }
 
