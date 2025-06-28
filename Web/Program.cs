@@ -16,19 +16,21 @@ builder.Services.AddHostedService<Reposter>();
 builder.Services.AddScoped<Reposter>();
 builder.Services.AddScoped<BotService>();
 
-var schedulerFactory = new StdSchedulerFactory();
-var scheduler = await schedulerFactory.GetScheduler();
+// Add Quartz services
+builder.Services.AddQuartz(q =>
+{
+    // Register the job
+    q.AddJob<BotPostingJob>(opts => opts.WithIdentity("BotPostingJob"));
 
-var job = JobBuilder.Create<BotPostingJob>()
-    .WithIdentity("BotPostingJob")
-    .Build();
+    // Create a trigger for hourly execution
+    q.AddTrigger(opts => opts
+            .ForJob("BotPostingJob")
+            .WithIdentity("MyHourlyJob-trigger")
+            .WithCronSchedule("0 0 * ? * * *") // Every hour
+    );
+});
+builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
-var trigger = TriggerBuilder.Create()
-    .WithCronSchedule("0 0 * ? * * *")
-    .Build();
-
-await scheduler.ScheduleJob(job, trigger);
-await scheduler.Start();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
