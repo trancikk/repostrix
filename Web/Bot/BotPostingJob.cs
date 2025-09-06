@@ -3,12 +3,12 @@ using Quartz;
 
 namespace Web.Bot;
 
-public class BotPostingJob(BotService botService, PostService postService): IJob
+public class BotPostingJob(BotService botService, PostService postService) : IJob
 {
     public async Task Execute(IJobExecutionContext context)
     {
-        var randomPost = await postService.GetRandomPostAsync();
-        if (randomPost is not null)
+        var randomPosts = await postService.GetRandomPostsAsync();
+        foreach (var randomPost in randomPosts)
         {
             await botService.SendPostAsync(randomPost);
         }

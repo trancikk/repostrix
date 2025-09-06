@@ -64,7 +64,7 @@ public class Reposter(PostService postService, ChannelService channelService) : 
             return;
 
         // Print to console
-        Console.WriteLine($"{user.FirstName} wrote {text}");
+        Console.WriteLine($"{user.FirstName} wrote {text} in channel {msg.Chat.Id}");
         var video = msg.Video;
         var photo = msg.Photo;
         var mediaGroupId = msg.MediaGroupId;

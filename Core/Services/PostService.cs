@@ -1,5 +1,6 @@
 ﻿using Core.Dto.Asset;
 using Core.Entity;
+using Core.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Core.Services;
@@ -33,18 +34,20 @@ public class PostService(IDbContextFactory<AppDbContext> dbContextFactory, Chann
         return 1;
     }
 
-    public async Task<Post?> GetRandomPostAsync()
+    public async Task<List<Post>> GetRandomPostsAsync()
     {
         await using var context = await dbContextFactory.CreateDbContextAsync();
-        var count = await context.Posts.Where(p => p.Status == PostStatus.Pending)
-            .CountAsync();
-        var randomIndex = new Random().Next(0, count);
+        var randomPosts = await context.Posts.Where(p => p.Status == PostStatus.Pending)
+            .GroupBy(p => p.SourceChatId)
+            .Select(g => g.Select(x => x.Id).ToList().GetRandom())
+            .ToListAsync();
+
         return await context.Posts.Where(p => p.Status == PostStatus.Pending)
-            .Skip(randomIndex)
+            .Where(p => randomPosts.Contains(p.Id))
             .Include(p => p.Assets)
             .Include(p => p.SourceChat)
             .ThenInclude(c => c.TagetChannels)
-            .FirstOrDefaultAsync();
+            .ToListAsync();
     }
 
     public async Task<Post?> FindPostByMediaGroupId(string? mediaGroupId)
