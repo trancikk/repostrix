@@ -5,9 +5,10 @@ import sys
 from sqlalchemy import text
 
 from config import settings
-from db.database import engine
-from bot import start_bot
-
+from db.database import engine, get_session
+from bot import BotWrapper
+from db.repo import create_post
+from dto import AssetDto
 
 if settings.dev_mode:
     logging.basicConfig(level=logging.DEBUG,
@@ -29,6 +30,12 @@ async def test():
             print(row)
 
 async def test_bot():
-    await start_bot()
+    bot = BotWrapper()
+    await bot.start_bot()
 
+async def test3():
+    async with get_session() as session:
+        assets = [AssetDto(url = "test")]
+        await create_post(session, [])
+        await session.commit()
 asyncio.run(test_bot())

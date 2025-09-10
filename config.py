@@ -9,13 +9,14 @@ class Settings(BaseSettings):
     db_port: int
     db_name: str
     dev_mode: bool = False
+
     class Config:
         env_file = ".env"
 
     @property
     def db_url(self) -> str:
-        url = "postgresql+asyncpg://" + self.db_user + ":" + self.db_password + "@" + self.db_host + ":" + str(self.db_port) + "/" + self.db_name
-        print(url)
-        return url
+        return "postgresql+asyncpg://" + self.db_user + ":" + self.db_password + "@" + self.db_host + ":" + str(
+            self.db_port) + "/" + self.db_name
+
 
 settings = Settings()
