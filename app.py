@@ -1,8 +1,25 @@
 import asyncio
+import logging
+import sys
 
 from sqlalchemy import text
 
+from config import settings
 from db.database import engine
+from bot import start_bot
+
+
+if settings.dev_mode:
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(funcName)s() - PID: %(process)d - %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        stream=sys.stdout)
+
+else:
+    logging.basicConfig(filename='logs/chastify.log', filemode='a',
+                        level=logging.DEBUG,
+                        format='%(asctime)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(funcName)s() - PID: %(process)d - %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
 
 
 async def test():
@@ -11,4 +28,7 @@ async def test():
         for row in result:
             print(row)
 
-asyncio.run(test())
+async def test_bot():
+    await start_bot()
+
+asyncio.run(test_bot())
