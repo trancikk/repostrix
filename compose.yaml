@@ -1,7 +1,14 @@
 ﻿services:
-  repostrix:
-    image: repostrix
-    build:
-      context: .
-      dockerfile: repostrix/Dockerfile
-
+  db:
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_DB=${DB_NAME}
+    ports:
+      - "5432:5432"
+    restart: always
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
