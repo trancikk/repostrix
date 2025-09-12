@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import ForeignKey, BigInteger
+from sqlalchemy import ForeignKey, BigInteger, Table, Column
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -14,18 +14,38 @@ class AssetType(Enum):
 class ChannelType(Enum):
     CHANNEL = 0,
     GROUP = 1,
-    OTHER = 2,
+    PRIVATE = 2,
+    OTHER = 3,
 
 
 class Base(DeclarativeBase):
     pass
 
 
+channel_mapping = Table(
+    "Channel_mapping",
+    Base.metadata,
+    Column('id', BigInteger, primary_key=True),
+    Column("source_chat_id", ForeignKey("Channel.id")),
+    Column("target_chat_id", ForeignKey("Channel.id")),
+)
+
+
 class Channel(Base):
-    __tablename__ = "channel"
+    __tablename__ = "Channel"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column()
+    username: Mapped[Optional[str]] = mapped_column(nullable=True)
     channel_type: Mapped[ChannelType] = mapped_column()
+    source_chats: Mapped[list['Channel']] = relationship(secondary=channel_mapping,
+                                                         primaryjoin="Channel.id==Channel_mapping.c.source_chat_id",
+                                                         secondaryjoin="Channel.id==Channel_mapping.c.target_chat_id",
+                                                         backref="target_channels",
+                                                         lazy="noload"
+                                                         )
+    # target_channels: Mapped['list[Channel]'] = relationship(secondary=channel_mapping, back_populates='source_chats',
+    #                                                         primaryjoin="Channel.id==Channel.target_chat_id",
+    #                                                         secondaryjoin="Channel.id==Channel.source_chat_id")
 
 
 class User(Base):
@@ -33,12 +53,6 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column()
     handle: Mapped[str] = mapped_column()
-
-
-class Chat(Base):
-    __tablename__ = "chat"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column()
 
 
 class Post(Base):
