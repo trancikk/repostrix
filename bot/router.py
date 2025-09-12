@@ -2,13 +2,13 @@ import logging
 
 from aiogram import Dispatcher, html
 from aiogram.filters import CommandStart, ChatMemberUpdatedFilter, IS_NOT_MEMBER, IS_MEMBER, JOIN_TRANSITION
-from aiogram.types import Message, ChatMemberUpdated, Update
+from aiogram.types import Message, ChatMemberUpdated, Update, ChatMemberLeft
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.middlewares import DbSessionMiddleware
 from db.database import session_maker
 from db.models import ChannelType
-from db.repo import create_post_from_message, add_new_channel_or_group
+from db.repo import create_post_from_message, add_new_channel_or_group, remove_channel_or_group
 
 dp = Dispatcher()
 dp.message.middleware(DbSessionMiddleware(session_maker=session_maker))
@@ -65,6 +65,7 @@ async def command_start_handler(message: Message) -> None:
 
 @dp.my_chat_member()
 async def register_new_channel(event: ChatMemberUpdated, session: AsyncSession):
+    print(event)
     if event.bot.id == event.new_chat_member.user.id:
         chat_type = ChannelType.OTHER
         match event.chat.type:
@@ -74,9 +75,18 @@ async def register_new_channel(event: ChatMemberUpdated, session: AsyncSession):
                 chat_type = ChannelType.CHANNEL
             case _:
                 chat_type = ChannelType.OTHER
-        await add_new_channel_or_group(session, event.chat.id, event.chat.title, chat_type)
-        logging.info(f"Detected adding to chat {event.chat.title} ({event.chat.id}) - {chat_type}")
 
+        match event.new_chat_member:
+            case ChatMemberLeft():
+                logging.info(f"Bot removed from chat {event.chat.title} ({event.chat.id}) - {chat_type})")
+                await remove_channel_or_group(session, event.chat.id)
+            case _:
+                logging.info(f"Detected adding to chat {event.chat.title} ({event.chat.id}) - {chat_type}")
+                await add_new_channel_or_group(session, event.chat.id, event.chat.title, chat_type)
+
+@dp.my_chat_member()
+async def remove_channel(event: ChatMemberUpdated, session: AsyncSession):
+    print(event)
 # @dp.channel_post()
 # async def on_channel_post_handler(message: Message) -> None:
 #     print(message)
