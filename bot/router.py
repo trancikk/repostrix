@@ -1,17 +1,19 @@
 import logging
 
-from aiogram import Dispatcher, html, F
+from aiogram import Dispatcher, html
 from aiogram.filters import CommandStart, ChatMemberUpdatedFilter, IS_NOT_MEMBER, IS_MEMBER, JOIN_TRANSITION
-from aiogram.types import Message, ChatMemberUpdated
+from aiogram.types import Message, ChatMemberUpdated, Update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.middlewares import DbSessionMiddleware
 from db.database import session_maker
-from db.repo import create_post_from_message
+from db.models import ChannelType
+from db.repo import create_post_from_message, add_new_channel_or_group
 
 dp = Dispatcher()
 dp.message.middleware(DbSessionMiddleware(session_maker=session_maker))
-
+dp.chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
+dp.my_chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
 
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
@@ -24,7 +26,6 @@ async def command_start_handler(message: Message) -> None:
     # method automatically or call API method directly via
     # Bot instance: `bot.send_message(chat_id=message.chat.id, ...)`
     await message.answer(f"Hello, {html.bold(message.from_user.full_name)}!")
-
 
     # @dp.message()
     # async def echo_handler(message: Message) -> None:
@@ -49,22 +50,36 @@ async def command_start_handler(message: Message) -> None:
     #         await message.answer("Nice try!")
 
 
-@dp.chat_member()
-async def bot_added_to_group(event: ChatMemberUpdated):
-    bot_user_id = event.bot.id # Get your bot's user ID
-    print(event)
-    for member in event.new_chat_members:
-        if member.id == bot_user_id:
-            chat_id = event.chat.id
-            chat_title = event.chat.title
-            print(f"Bot was added to chat: {chat_title} (ID: {chat_id})")
-            # Perform actions like sending a welcome message, storing chat_id, etc.
-            await event.answer("Hello! Thanks for inviting me to this chat.")
-            break
+# @dp.chat_member()
+# async def bot_added_to_group(event: ChatMemberUpdated):
+#     bot_user_id = event.bot.id # Get your bot's user ID
+#     print(event)
+#     for member in event.new_chat_members:
+#         if member.id == bot_user_id:
+#             chat_id = event.chat.id
+#             chat_title = event.chat.title
+#             print(f"Bot was added to chat: {chat_title} (ID: {chat_id})")
+#             # Perform actions like sending a welcome message, storing chat_id, etc.
+#             await event.answer("Hello! Thanks for inviting me to this chat.")
+#             break
 
-@dp.channel_post()
-async def on_channel_post_handler(message: Message) -> None:
-    print(message)
+@dp.my_chat_member()
+async def register_new_channel(event: ChatMemberUpdated, session: AsyncSession):
+    if event.bot.id == event.new_chat_member.user.id:
+        chat_type = ChannelType.OTHER
+        match event.chat.type:
+            case "group":
+                chat_type = ChannelType.GROUP
+            case "channel":
+                chat_type = ChannelType.CHANNEL
+            case _:
+                chat_type = ChannelType.OTHER
+        await add_new_channel_or_group(session, event.chat.id, event.chat.title, chat_type)
+        logging.info(f"Detected adding to chat {event.chat.title} ({event.chat.id}) - {chat_type}")
+
+# @dp.channel_post()
+# async def on_channel_post_handler(message: Message) -> None:
+#     print(message)
 
 # @dp.message()
 # async def save_message(message: Message, session: AsyncSession) -> None:

@@ -11,14 +11,21 @@ class AssetType(Enum):
     ANIMATION = 2,
 
 
+class ChannelType(Enum):
+    CHANNEL = 0,
+    GROUP = 1,
+    OTHER = 2,
+
+
 class Base(DeclarativeBase):
     pass
 
 
 class Channel(Base):
     __tablename__ = "channel"
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column()
+    channel_type: Mapped[ChannelType] = mapped_column()
 
 
 class User(Base):
