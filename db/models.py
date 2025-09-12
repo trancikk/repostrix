@@ -1,7 +1,8 @@
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import ForeignKey, BigInteger, Table, Column
+from sqlalchemy import ForeignKey, BigInteger, Table, Column, DateTime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -57,10 +58,12 @@ class User(Base):
 
 class Post(Base):
     __tablename__ = "post"
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     source_chat_id: Mapped[int] = mapped_column(BigInteger)
     source_message_id: Mapped[int] = mapped_column(BigInteger)
     text: Mapped[Optional[str]] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     assets: Mapped["list[Asset]"] = relationship("Asset", back_populates="post",
                                                  lazy="noload",
                                                  cascade="all, delete-orphan"

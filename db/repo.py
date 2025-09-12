@@ -14,9 +14,11 @@ async def create_post(session: AsyncSession, assets_dto: list[AssetDto], post_te
     session.add_all(assets)
 
 
-async def create_post_from_message(session: AsyncSession, source_message_id: int, source_chat_id: int) -> None:
+async def create_post_from_message(session: AsyncSession, source_message_id: int, source_chat_id: int) -> Post:
     post = Post(source_message_id=source_message_id, source_chat_id=source_chat_id)
     session.add(post)
+    await session.flush()
+    return post
 
 
 async def add_new_channel_or_group(session: AsyncSession, chat_id: int, channel_name: str,
