@@ -16,6 +16,7 @@ public class Reposter(PostService postService, ChannelService channelService) : 
         return $"https://api.telegram.org/file/bot{Token}/{file.FilePath}";
     }
 
+//    good luck
     private const string Token = "8085912035:AAEVtFDBhoDwqhYV9A5WFPqATa5R4vT1VqM";
     private TelegramBotClient Bot { get; set; } = new(Token);
 
