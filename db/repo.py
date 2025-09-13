@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import delete, select, or_
@@ -5,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import Asset, Post, ChannelType, Channel
 from dto import AssetDto
+from utils import get_next_n_hours
 
 
 async def create_post(session: AsyncSession, assets_dto: list[AssetDto], post_text: str = "") -> None:
@@ -19,6 +21,15 @@ async def create_post_from_message(session: AsyncSession, source_message_id: int
     session.add(post)
     await session.flush()
     return post
+
+
+async def schedule_post(session: AsyncSession, post_id: int, delta: int) -> Optional[Post]:
+    existing_post_result = await session.execute(select(Post).where(Post.id == post_id))
+    existing_post = existing_post_result.scalar_one_or_none()
+    if existing_post is not None:
+        existing_post.scheduled_at = get_next_n_hours(delta)
+        return existing_post
+    return None
 
 
 async def add_new_channel_or_group(session: AsyncSession, chat_id: int, channel_name: str,

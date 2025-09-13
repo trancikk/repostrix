@@ -1,9 +1,11 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Optional
 
 from sqlalchemy import ForeignKey, BigInteger, Table, Column, DateTime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+from utils import get_now, get_next_n_hours
 
 
 class AssetType(Enum):
@@ -62,8 +64,9 @@ class Post(Base):
     source_chat_id: Mapped[int] = mapped_column(BigInteger)
     source_message_id: Mapped[int] = mapped_column(BigInteger)
     text: Mapped[Optional[str]] = mapped_column()
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: get_now())
+    scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True,
+                                                             default=lambda: get_next_n_hours(1))
     assets: Mapped["list[Asset]"] = relationship("Asset", back_populates="post",
                                                  lazy="noload",
                                                  cascade="all, delete-orphan"

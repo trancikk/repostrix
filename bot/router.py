@@ -1,9 +1,10 @@
 import logging
 
-from aiogram import Dispatcher, html
+from aiogram import Dispatcher, html, F
 from aiogram.enums import ChatType
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, ChatMemberUpdated, ChatMemberLeft, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, ChatMemberUpdated, ChatMemberLeft, InlineKeyboardMarkup, InlineKeyboardButton, \
+    CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +12,7 @@ from bot.middlewares import DbSessionMiddleware
 from db.database import session_maker
 from db.models import ChannelType
 from db.repo import create_post_from_message, add_new_channel_or_group, remove_channel_or_group, \
-    find_channel_by_username_or_id, add_channel_mapping
+    find_channel_by_username_or_id, add_channel_mapping, schedule_post
 
 time_table = {
     "Next 2 hours": 2,
@@ -33,6 +34,7 @@ def get_time_table_kb(post_id: int):
 
 dp = Dispatcher()
 dp.message.middleware(DbSessionMiddleware(session_maker=session_maker))
+dp.callback_query.middleware(DbSessionMiddleware(session_maker=session_maker))
 dp.chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
 dp.my_chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
 
@@ -106,4 +108,18 @@ async def save_message(message: Message, session: AsyncSession) -> None:
     await message.answer("Post saved. What time do you want to post it? Default is next hour",
                          reply_markup=get_time_table_kb(created_post.id))
 
-# TODO add message schedule update based on callback data
+
+@dp.callback_query(F.data.startswith('schedule'))
+async def handle_schedule_update(callback_data: CallbackQuery, session: AsyncSession) -> None:
+    try:
+        data = callback_data.data.split(':')[-1]
+        if data is not None:
+            post_id, delta = data.split('-')
+            if post_id is not None and delta is not None:
+                updated_post = await schedule_post(session, int(post_id), int(delta))
+                if updated_post is not None:
+                    logging.info(f"Scheduled post {post_id} to {updated_post.scheduled_at}")
+                    await callback_data.message.answer(f"Scheduled post will be posted in the next {delta} hours")
+    except Exception as e:
+        logging.error(f"Error during schedule callback handling: {e}")
+        await callback_data.message.answer(f"Something went wrong.")
