@@ -1,8 +1,8 @@
-from aiogram import Bot
+from aiogram import Bot, Router, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from bot.router import dp
+from bot.middlewares import BotWrapperMiddleware
 from config import settings
 
 
@@ -10,7 +10,8 @@ class BotWrapper:
     def __init__(self):
         self.bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
-    async def start_bot(self) -> None:
+    async def start_bot(self, dp: Dispatcher) -> None:
+        dp.callback_query.middleware(BotWrapperMiddleware(self))
         await dp.start_polling(self.bot)
 
     async def copy_message(self, source_message_id: int, source_chat_id: int | str, target_chat_id: int) -> None:

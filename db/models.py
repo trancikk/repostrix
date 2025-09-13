@@ -21,11 +21,17 @@ class ChannelType(Enum):
     OTHER = 3,
 
 
+class PostStatus(Enum):
+    PENDING = 0,
+    POSTED = 1,
+    CANCELLED = 2,
+
+
 class Base(DeclarativeBase):
     pass
 
 
-channel_mapping = Table(
+ChannelMapping = Table(
     "Channel_mapping",
     Base.metadata,
     Column('id', BigInteger, primary_key=True),
@@ -40,7 +46,7 @@ class Channel(Base):
     name: Mapped[str] = mapped_column()
     username: Mapped[Optional[str]] = mapped_column(nullable=True)
     channel_type: Mapped[ChannelType] = mapped_column()
-    source_chats: Mapped[list['Channel']] = relationship(secondary=channel_mapping,
+    source_chats: Mapped[list['Channel']] = relationship(secondary=ChannelMapping,
                                                          primaryjoin="Channel.id==Channel_mapping.c.source_chat_id",
                                                          secondaryjoin="Channel.id==Channel_mapping.c.target_chat_id",
                                                          backref="target_channels",
@@ -64,6 +70,7 @@ class Post(Base):
     source_chat_id: Mapped[int] = mapped_column(BigInteger)
     source_message_id: Mapped[int] = mapped_column(BigInteger)
     text: Mapped[Optional[str]] = mapped_column()
+    status: Mapped[PostStatus] = mapped_column(default=PostStatus.PENDING)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: get_now())
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True,
                                                              default=lambda: get_next_n_hours(1))

@@ -1,12 +1,16 @@
-from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Sequence
 
-from sqlalchemy import delete, select, or_
+from sqlalchemy import delete, select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql.functions import now
 
-from db.models import Asset, Post, ChannelType, Channel
+from db.models import Asset, Post, ChannelType, Channel, ChannelMapping, PostStatus
 from dto import AssetDto
 from utils import get_next_n_hours
+
+SourceChannel = aliased(Channel)
+TargetChannel = aliased(Channel)
 
 
 async def create_post(session: AsyncSession, assets_dto: list[AssetDto], post_text: str = "") -> None:
@@ -16,6 +20,42 @@ async def create_post(session: AsyncSession, assets_dto: list[AssetDto], post_te
     session.add_all(assets)
 
 
+async def find_post(session: AsyncSession, post_id: int) -> Optional[Post]:
+    existing_post_result = await session.execute(select(Post).where(Post.id == post_id))
+    return existing_post_result.scalars().first()
+
+
+def query_posts_with_target_channels():
+    return (select(Post.id.label("post_id"), Post.source_message_id, Post.source_chat_id,
+                   Post.scheduled_at,
+                   TargetChannel.id.label("target_chat_id")
+                   )
+            .join(ChannelMapping, ChannelMapping.c.source_chat_id == Post.source_chat_id)
+            .join(TargetChannel,
+                  ChannelMapping.c.target_chat_id == TargetChannel.id))
+
+
+async def find_post_with_target_channels(session: AsyncSession, post_id: int):
+    q = (query_posts_with_target_channels()
+    .where(
+        Post.id == post_id))
+    query_result = await session.execute(q)
+    return query_result.all()
+
+
+async def find_expired_posts(session: AsyncSession):
+    q = (query_posts_with_target_channels().
+         where(and_(Post.scheduled_at < now(), Post.status == PostStatus.PENDING)))
+    results = await session.execute(q)
+    return results.all()
+
+
+async def update_post_status(session: AsyncSession, post_id: int, post_status: PostStatus):
+    post = await find_post(session, post_id)
+    post.status = post_status
+    return post
+
+
 async def create_post_from_message(session: AsyncSession, source_message_id: int, source_chat_id: int) -> Post:
     post = Post(source_message_id=source_message_id, source_chat_id=source_chat_id)
     session.add(post)
@@ -23,7 +63,7 @@ async def create_post_from_message(session: AsyncSession, source_message_id: int
     return post
 
 
-async def schedule_post(session: AsyncSession, post_id: int, delta: int) -> Optional[Post]:
+async def update_post_schedule(session: AsyncSession, post_id: int, delta: float) -> Optional[Post]:
     existing_post_result = await session.execute(select(Post).where(Post.id == post_id))
     existing_post = existing_post_result.scalar_one_or_none()
     if existing_post is not None:

@@ -13,7 +13,7 @@ from db.models import *
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-env_db_url = settings.db_url
+env_db_url = settings.db_async_url
 config.set_main_option("sqlalchemy.url", env_db_url)
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

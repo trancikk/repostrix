@@ -3,18 +3,23 @@ import logging
 from aiogram import Dispatcher, html, F
 from aiogram.enums import ChatType
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, ChatMemberUpdated, ChatMemberLeft, InlineKeyboardMarkup, InlineKeyboardButton, \
-    CallbackQuery
+from aiogram.types import Message, ChatMemberUpdated, ChatMemberLeft, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot import BotWrapper
 from bot.middlewares import DbSessionMiddleware
 from db.database import session_maker
 from db.models import ChannelType
 from db.repo import create_post_from_message, add_new_channel_or_group, remove_channel_or_group, \
-    find_channel_by_username_or_id, add_channel_mapping, schedule_post
+    find_channel_by_username_or_id, add_channel_mapping, update_post_schedule, find_post_with_target_channels
+from post_schedule_service import schedule_message
 
 time_table = {
+    "Next 1 mins": 1 / 60,
+    "Next 5 mins": 1 / 12,
+    "Next 10 mins": 1 / 6,
+    "Next 30 mins": 1 / 2,
     "Next 2 hours": 2,
     "Next 3 hours": 3,
     "Next 4 hours": 4,
@@ -110,16 +115,19 @@ async def save_message(message: Message, session: AsyncSession) -> None:
 
 
 @dp.callback_query(F.data.startswith('schedule'))
-async def handle_schedule_update(callback_data: CallbackQuery, session: AsyncSession) -> None:
+async def handle_schedule_update(callback_data: CallbackQuery, session: AsyncSession, bot_wrapper: BotWrapper) -> None:
     try:
         data = callback_data.data.split(':')[-1]
         if data is not None:
             post_id, delta = data.split('-')
             if post_id is not None and delta is not None:
-                updated_post = await schedule_post(session, int(post_id), int(delta))
+                updated_post = await update_post_schedule(session, int(post_id), float(delta))
+                await session.commit()
                 if updated_post is not None:
+                    await schedule_message(bot_wrapper, updated_post.id)
                     logging.info(f"Scheduled post {post_id} to {updated_post.scheduled_at}")
                     await callback_data.message.answer(f"Scheduled post will be posted in the next {delta} hours")
     except Exception as e:
         logging.error(f"Error during schedule callback handling: {e}")
+        logging.exception(e)
         await callback_data.message.answer(f"Something went wrong.")

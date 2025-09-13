@@ -4,7 +4,7 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from config import settings
 
-engine  = create_async_engine(settings.db_url, echo=settings.dev_mode)
+engine  = create_async_engine(settings.db_async_url, echo=settings.dev_mode)
 session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
 
 @asynccontextmanager

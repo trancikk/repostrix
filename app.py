@@ -6,9 +6,10 @@ from sqlalchemy import text
 
 from config import settings
 from db.database import engine, get_session
-from bot import BotWrapper
+from bot import BotWrapper, dp
 from db.repo import create_post
 from dto import AssetDto
+from post_schedule_service import run_schedule_service
 
 if settings.dev_mode:
     logging.basicConfig(level=logging.DEBUG,
@@ -29,13 +30,22 @@ async def test():
         for row in result:
             print(row)
 
+
 async def test_bot():
     bot = BotWrapper()
-    await bot.start_bot()
+    await bot.start_bot(dp)
+
 
 async def test3():
     async with get_session() as session:
-        assets = [AssetDto(url = "test")]
+        assets = [AssetDto(url="test")]
         await create_post(session, [])
         await session.commit()
-asyncio.run(test_bot())
+
+
+async def main():
+    bot = BotWrapper()
+    await asyncio.gather(bot.start_bot(dp), run_schedule_service(bot))
+
+
+asyncio.run(main())
