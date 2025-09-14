@@ -2,15 +2,16 @@ from typing import Optional, Sequence
 
 from sqlalchemy import delete, select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, selectinload
 from sqlalchemy.sql.functions import now
 
-from db.models import Asset, Post, ChannelType, Channel, ChannelMapping, PostStatus
+from db.models import Asset, Post, ChatType, Chat, ChatMapping, PostStatus
 from dto import AssetDto
 from utils import get_next_n_hours
 
-SourceChannel = aliased(Channel)
-TargetChannel = aliased(Channel)
+
+# SourceChannel = aliased(Chat)
+# TargetChannel = aliased(Chat)
 
 
 async def create_post(session: AsyncSession, assets_dto: list[AssetDto], post_text: str = "") -> None:
@@ -25,29 +26,31 @@ async def find_post(session: AsyncSession, post_id: int) -> Optional[Post]:
     return existing_post_result.scalars().first()
 
 
-def query_posts_with_target_channels():
-    return (select(Post.id.label("post_id"), Post.source_message_id, Post.source_chat_id,
-                   Post.scheduled_at,
-                   TargetChannel.id.label("target_chat_id")
-                   )
-            .join(ChannelMapping, ChannelMapping.c.source_chat_id == Post.source_chat_id)
-            .join(TargetChannel,
-                  ChannelMapping.c.target_chat_id == TargetChannel.id))
-
+# def query_posts_with_target_channels():
+#     return (select(Post.id.label("post_id"), Post.source_message_id, Post.source_chat_id,
+#                    Post.scheduled_at,
+#                    TargetChannel.id.label("target_chat_id")
+#                    )
+#             .join(ChatMapping, ChatMapping.c.source_chat_id == Post.source_chat_id)
+#             .join(TargetChannel,
+#                   ChatMapping.c.target_chat_id == TargetChannel.id))
+#
 
 async def find_post_with_target_channels(session: AsyncSession, post_id: int):
-    q = (query_posts_with_target_channels()
-    .where(
-        Post.id == post_id))
-    query_result = await session.execute(q)
+    # q = (query_posts_with_target_channels()
+    # .where(
+    #     Post.id == post_id))
+    # query_result = await session.execute(q)
     return query_result.all()
 
 
-async def find_expired_posts(session: AsyncSession):
-    q = (query_posts_with_target_channels().
-         where(and_(Post.scheduled_at < now(), Post.status == PostStatus.PENDING)))
+async def find_expired_posts(session: AsyncSession) -> Sequence[Post]:
+    q = (select(Post)
+         .options(selectinload(Post.target_chats))
+         .options(selectinload(Post.assets))
+         .where(and_(Post.scheduled_at <= now(), Post.status == PostStatus.PENDING)))
     results = await session.execute(q)
-    return results.all()
+    return results.scalars().all()
 
 
 async def update_post_status(session: AsyncSession, post_id: int, post_status: PostStatus):
@@ -80,30 +83,30 @@ async def update_post_schedule(session: AsyncSession, post_id: int, delta: float
 
 
 async def add_new_channel_or_group(session: AsyncSession, chat_id: int, channel_name: str,
-                                   channel_type: ChannelType, username: Optional[str] = None):
-    result = await session.execute(select(Channel).where(Channel.id == chat_id))
-    existing_channel: Optional[Channel] = result.scalars().first()
+                                   channel_type: ChatType, username: Optional[str] = None):
+    result = await session.execute(select(Chat).where(Chat.id == chat_id))
+    existing_channel: Optional[Chat] = result.scalars().first()
     if existing_channel is not None:
         existing_channel.name = channel_name
         existing_channel.username = username
     else:
-        channel = Channel(id=chat_id, name=channel_name, channel_type=channel_type, username=username)
+        channel = Chat(id=chat_id, name=channel_name, chat_type=channel_type, username=username)
         session.add(channel)
 
 
-async def find_channel_by_username_or_id(session: AsyncSession, username_or_id: str) -> Optional[Channel]:
+async def find_channel_by_username_or_id(session: AsyncSession, username_or_id: str) -> Optional[Chat]:
     result = await session.execute(
-        select(Channel).where(or_(Channel.username == username_or_id, str(Channel.id) == username_or_id)))
+        select(Chat).where(or_(Chat.username == username_or_id, str(Chat.id) == username_or_id)))
     return result.scalars().first()
 
 
-async def find_channel_by_id(session: AsyncSession, channel_id: int) -> Optional[Channel]:
-    result = await session.execute(select(Channel).where(Channel.id == channel_id))
+async def find_channel_by_id(session: AsyncSession, channel_id: int) -> Optional[Chat]:
+    result = await session.execute(select(Chat).where(Chat.id == channel_id))
     return result.scalars().first()
 
 
 async def remove_channel_or_group(session: AsyncSession, chat_id: int) -> int:
-    sql = delete(Channel).where(Channel.id == chat_id)
+    sql = delete(Chat).where(Chat.id == chat_id)
     result = await session.execute(sql)
     return result.rowcount
 

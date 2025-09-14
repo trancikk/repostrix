@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 
 from aiogram import Dispatcher, html, F
-from aiogram.enums import ChatType
+from aiogram.enums import ChatType as ChatTypeTelegram
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, ChatMemberUpdated, ChatMemberLeft, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot import BotWrapper
 from bot.middlewares import DbSessionMiddleware, AlbumMiddleware
 from db.database import session_maker
-from db.models import ChannelType
+from db.models import ChatType
 from db.repo import create_post_from_message, add_new_channel_or_group, remove_channel_or_group, \
     find_channel_by_username_or_id, add_channel_mapping, update_post_schedule, find_post_with_target_channels
 from post_schedule_service import schedule_message
@@ -51,7 +51,7 @@ dp.my_chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
 async def register_new_channel(message: Message, session: AsyncSession):
     if message.chat.type == ChatType.PRIVATE:
         # TODO channel name is hardcoded
-        await add_new_channel_or_group(session, message.chat.id, 'direct message', ChannelType.PRIVATE)
+        await add_new_channel_or_group(session, message.chat.id, 'direct message', ChatType.PRIVATE)
         await message.answer(
             "Please note, registering channel directly from this chat will allow you to manage only one channel")
     args = message.text.split(' ')
@@ -87,14 +87,16 @@ async def register_new_chat(event: ChatMemberUpdated, session: AsyncSession):
     print(event.chat.type)
     print(event)
     if event.bot.id == event.new_chat_member.user.id:
-        chat_type = ChannelType.OTHER
+        chat_type = ChatType.OTHER
         match event.chat.type:
-            case 'group':
-                chat_type = ChannelType.GROUP
-            case 'channel':
-                chat_type = ChannelType.CHANNEL
+            case ChatTypeTelegram.GROUP:
+                chat_type = ChatType.GROUP
+            case ChatTypeTelegram.CHANNEL:
+                chat_type = ChatType.CHANNEL
+            case ChatTypeTelegram.PRIVATE:
+                chat_type = ChatType.PRIVATE
             case _:
-                chat_type = ChannelType.OTHER
+                chat_type = ChatType.OTHER
 
         match event.new_chat_member:
             case ChatMemberLeft():
@@ -103,7 +105,7 @@ async def register_new_chat(event: ChatMemberUpdated, session: AsyncSession):
             case _:
                 logging.info(f"Detected adding to chat {event.chat.title} ({event.chat.id}) - {chat_type}")
                 await add_new_channel_or_group(session, event.chat.id, event.chat.title, chat_type, event.chat.username)
-                if chat_type == ChannelType.GROUP:
+                if chat_type == ChatType.GROUP:
                     return await event.answer(
                         "To register (connect) a new channel linked to this group, type in /register &lt;channel_name&gt; or /register &lt;channel_id&gt;")
                 return None
@@ -118,7 +120,7 @@ async def register_new_chat(event: ChatMemberUpdated, session: AsyncSession):
 @dp.message(F.text | F.video | F.audio | F.photo | F.caption | F.media_group_id)
 async def save_message(message: Message, session: AsyncSession, album: list[Message], bot_wrapper: BotWrapper) -> None:
     photos = [item.photo[-1].file_id for item in album]
-    text = get_not_empty_string(message.text, message.caption)
+    text = get_not_empty_string(message.html_text, message.caption)
     created_post = await create_post_from_message(session, source_message_id=message.message_id,
                                                   source_chat_id=message.chat.id, text=text, files=photos,
                                                   is_album=len(photos) > 0)

@@ -3,12 +3,13 @@ import logging
 from collections import defaultdict
 from datetime import timezone, datetime, timedelta
 
+from aiogram.utils.media_group import MediaGroupBuilder
 from scheduler.asyncio import Scheduler
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import BotWrapper
 from db.database import session_maker
-from db.models import PostStatus
+from db.models import PostStatus, Post
 from db.repo import find_post_with_target_channels, update_post_status, find_expired_posts
 from utils import every_minute_at_0
 
@@ -16,13 +17,19 @@ scheduler = None | Scheduler
 jobs = defaultdict(list)
 
 
-# TODO rewrite to pull the data each minute and post. its better in case if some code will change schedule in the future
-# TODO hence scheduler is not really required here
-
-async def send_post(session: AsyncSession, bot_wrapper: BotWrapper, post):
-    await bot_wrapper.copy_message(post.source_message_id, post.source_chat_id,
-                                   post.target_chat_id)
-    await update_post_status(session, post.post_id, PostStatus.POSTED)
+async def send_post(session: AsyncSession, bot_wrapper: BotWrapper, post: Post):
+    if post.is_album:
+        media_group_bd = MediaGroupBuilder(caption=post.text)
+        for asset in post.assets:
+            # TODO handle different types of content video\photo\etc
+            media_group_bd.add(type='photo', media=asset.file_id)
+        for chat in post.target_chats:
+            await bot_wrapper.send_media_group(chat_id=chat.id, media=media_group_bd.build())
+    else:
+        for chat in post.target_chats:
+            await bot_wrapper.copy_message(post.source_message_id, post.source_chat_id,
+                                           chat.id)
+    await update_post_status(session, post.id, PostStatus.POSTED)
     await session.commit()
 
 
