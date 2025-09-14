@@ -4,6 +4,8 @@ from collections import defaultdict
 from aiogram import Dispatcher, html, F
 from aiogram.enums import ChatType as ChatTypeTelegram
 from aiogram.filters import CommandStart, Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, ChatMemberUpdated, ChatMemberLeft, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,26 +49,37 @@ dp.chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
 dp.my_chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
 
 
+class ChannelRegistrationForm(StatesGroup):
+    name_input = State()
+
+
+async def register_channel(message: Message, channel_name_or_id: str | int, session: AsyncSession):
+    existing_channel = await find_channel_by_username_or_id(session, channel_name_or_id)
+    if existing_channel is not None:
+        # TODO check if the user is admin
+        await add_channel_mapping(session, message.chat.id, existing_channel.id)
+        return await message.reply(
+            f"Channel {channel_name_or_id} has been mapped to this chat. You can send your posts here")
+    else:
+        return await message.reply("Please add Bot to admins first to the target channel.")
+
+
 @dp.message(Command('register'))
-async def register_new_channel(message: Message, session: AsyncSession):
-    if message.chat.type == ChatType.PRIVATE:
-        # TODO channel name is hardcoded
-        await add_new_channel_or_group(session, message.chat.id, 'direct message', ChatType.PRIVATE)
-        await message.answer(
-            "Please note, registering channel directly from this chat will allow you to manage only one channel")
+async def register_new_channel(message: Message, session: AsyncSession, state: FSMContext):
     args = message.text.split(' ')
     if len(args) < 2:
-        return await message.reply("Format should be like /register <channel_name> or /register <channel_id>")
+        await state.set_state(ChannelRegistrationForm.name_input)
+        return await message.answer("Please provide channel name or ID")
     else:
         channel_name_or_id = args[1].strip().replace('@', '').lower()
-        existing_channel = await find_channel_by_username_or_id(session, channel_name_or_id)
-        if existing_channel is not None:
-            # TODO add deeplinking verification
-            await add_channel_mapping(session, message.chat.id, existing_channel.id)
-            return await message.reply(
-                f"Channel {channel_name_or_id} has been mapped to this chat. You can send your posts here")
-        else:
-            return await message.reply("Please add Bot to admins first to the target channel.")
+        return await register_channel(message, channel_name_or_id, session)
+
+
+@dp.message(ChannelRegistrationForm.name_input)
+async def register_new_channel_(message: Message, session: AsyncSession, state: FSMContext):
+    channel_name = message.text.strip().replace('@', '').lower()
+    await state.clear()
+    return await register_channel(message, channel_name, session)
 
 
 @dp.message(CommandStart())
@@ -120,6 +133,7 @@ async def register_new_chat(event: ChatMemberUpdated, session: AsyncSession):
 @dp.message(F.text | F.video | F.audio | F.photo | F.caption | F.media_group_id)
 async def save_message(message: Message, session: AsyncSession, album: list[Message], bot_wrapper: BotWrapper) -> None:
     photos = [item.photo[-1].file_id for item in album]
+    # TODO store user info to determine whether they are still admin when post is about to be sent
     text = get_not_empty_string(message.html_text, message.caption)
     created_post = await create_post_from_message(session, source_message_id=message.message_id,
                                                   source_chat_id=message.chat.id, text=text, files=photos,
