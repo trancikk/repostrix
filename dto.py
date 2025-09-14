@@ -4,5 +4,6 @@ from pydantic import BaseModel
 
 
 class AssetDto(BaseModel):
-    data: Optional[bytes] = None
+    file_id: str
+    file_name: str
     url: Optional[str] = None

@@ -71,18 +71,20 @@ class Post(Base):
     source_message_id: Mapped[int] = mapped_column(BigInteger)
     text: Mapped[Optional[str]] = mapped_column()
     status: Mapped[PostStatus] = mapped_column(default=PostStatus.PENDING)
+    is_album: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: get_now())
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True,
                                                              default=lambda: get_next_n_hours(1))
     assets: Mapped["list[Asset]"] = relationship("Asset", back_populates="post",
                                                  lazy="noload",
-                                                 cascade="all, delete-orphan"
+                                                 cascade="all, delete-orphan",
                                                  )
 
 
 class Asset(Base):
     __tablename__ = "asset"
     id: Mapped[int] = mapped_column(primary_key=True)
+    file_id: Mapped[Optional[str]] = mapped_column()
     asset_url: Mapped[Optional[str]] = mapped_column()
     asset_content: Mapped[Optional[bytes]] = mapped_column()
     post_id: Mapped[int] = mapped_column(ForeignKey("post.id"))

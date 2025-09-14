@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 
 from aiogram import Dispatcher, html, F
 from aiogram.enums import ChatType
@@ -8,12 +9,13 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import BotWrapper
-from bot.middlewares import DbSessionMiddleware
+from bot.middlewares import DbSessionMiddleware, AlbumMiddleware
 from db.database import session_maker
 from db.models import ChannelType
 from db.repo import create_post_from_message, add_new_channel_or_group, remove_channel_or_group, \
     find_channel_by_username_or_id, add_channel_mapping, update_post_schedule, find_post_with_target_channels
 from post_schedule_service import schedule_message
+from utils import get_not_empty_string
 
 time_table = {
     "Next 1 mins": 1 / 60,
@@ -39,6 +41,7 @@ def get_time_table_kb(post_id: int):
 
 dp = Dispatcher()
 dp.message.middleware(DbSessionMiddleware(session_maker=session_maker))
+dp.message.middleware(AlbumMiddleware())
 dp.callback_query.middleware(DbSessionMiddleware(session_maker=session_maker))
 dp.chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
 dp.my_chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
@@ -81,13 +84,14 @@ async def command_start_handler(message: Message) -> None:
 
 @dp.my_chat_member()
 async def register_new_chat(event: ChatMemberUpdated, session: AsyncSession):
+    print(event.chat.type)
     print(event)
     if event.bot.id == event.new_chat_member.user.id:
         chat_type = ChannelType.OTHER
         match event.chat.type:
-            case ChannelType.GROUP:
+            case 'group':
                 chat_type = ChannelType.GROUP
-            case ChannelType.CHANNEL:
+            case 'channel':
                 chat_type = ChannelType.CHANNEL
             case _:
                 chat_type = ChannelType.OTHER
@@ -99,17 +103,27 @@ async def register_new_chat(event: ChatMemberUpdated, session: AsyncSession):
             case _:
                 logging.info(f"Detected adding to chat {event.chat.title} ({event.chat.id}) - {chat_type}")
                 await add_new_channel_or_group(session, event.chat.id, event.chat.title, chat_type, event.chat.username)
+                if chat_type == ChannelType.GROUP:
+                    return await event.answer(
+                        "To register (connect) a new channel linked to this group, type in /register &lt;channel_name&gt; or /register &lt;channel_id&gt;")
+                return None
+
+    # @dp.channel_post()
+    return None
 
 
-# @dp.channel_post()
 # async def on_channel_post_handler(message: Message) -> None:
 #     print(message)
 
-@dp.message()
-async def save_message(message: Message, session: AsyncSession) -> None:
+@dp.message(F.text | F.video | F.audio | F.photo | F.caption | F.media_group_id)
+async def save_message(message: Message, session: AsyncSession, album: list[Message], bot_wrapper: BotWrapper) -> None:
+    photos = [item.photo[-1].file_id for item in album]
+    text = get_not_empty_string(message.text, message.caption)
     created_post = await create_post_from_message(session, source_message_id=message.message_id,
-                                                  source_chat_id=message.chat.id)
+                                                  source_chat_id=message.chat.id, text=text, files=photos,
+                                                  is_album=len(photos) > 0)
     logging.info(f"Created new post: {created_post} from {message.chat.title} ({message.chat.id})")
+    # await schedule_message(bot_wrapper, created_post.id)
     await message.answer("Post saved. What time do you want to post it? Default is next hour",
                          reply_markup=get_time_table_kb(created_post.id))
 
@@ -124,7 +138,7 @@ async def handle_schedule_update(callback_data: CallbackQuery, session: AsyncSes
                 updated_post = await update_post_schedule(session, int(post_id), float(delta))
                 await session.commit()
                 if updated_post is not None:
-                    await schedule_message(bot_wrapper, updated_post.id)
+                    # await schedule_message(bot_wrapper, updated_post.id)
                     logging.info(f"Scheduled post {post_id} to {updated_post.scheduled_at}")
                     await callback_data.message.answer(f"Scheduled post will be posted in the next {delta} hours")
     except Exception as e:

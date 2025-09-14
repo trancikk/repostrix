@@ -12,6 +12,7 @@ class BotWrapper:
 
     async def start_bot(self, dp: Dispatcher) -> None:
         dp.callback_query.middleware(BotWrapperMiddleware(self))
+        dp.message.middleware(BotWrapperMiddleware(self))
         await dp.start_polling(self.bot)
 
     async def copy_message(self, source_message_id: int, source_chat_id: int | str, target_chat_id: int) -> None:

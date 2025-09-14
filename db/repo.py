@@ -56,10 +56,17 @@ async def update_post_status(session: AsyncSession, post_id: int, post_status: P
     return post
 
 
-async def create_post_from_message(session: AsyncSession, source_message_id: int, source_chat_id: int) -> Post:
-    post = Post(source_message_id=source_message_id, source_chat_id=source_chat_id)
+async def create_post_from_message(session: AsyncSession, source_message_id: int, source_chat_id: int, text: str = "",
+                                   files: Optional[list[str]] = None, is_album=False) -> Post:
+    post = Post(source_message_id=source_message_id, source_chat_id=source_chat_id, text=text, is_album=is_album)
     session.add(post)
     await session.flush()
+    if files is not None and len(files) > 0:
+        for file in files:
+            asset = Asset(file_id=file, post_id=post.id)
+            session.add(asset)
+        await session.flush()
+        await session.refresh(post)
     return post
 
 
