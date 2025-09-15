@@ -1,13 +1,13 @@
-from datetime import datetime, timezone, timedelta, time
+from datetime import datetime, time
 from enum import Enum
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import ForeignKey, BigInteger, Table, Column, DateTime, Time, func, TypeDecorator, String
+from sqlalchemy import ForeignKey, BigInteger, Table, Column, DateTime, Time, TypeDecorator, String
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, foreign
 
-from utils import get_now, get_next_n_hours
+from utils import get_now, get_next_n_hours, next_fire_time
 
 
 class ZoneInfoType(TypeDecorator):
@@ -77,7 +77,6 @@ class Chat(Base):
     name: Mapped[str] = mapped_column()
     username: Mapped[Optional[str]] = mapped_column(nullable=True)
     chat_type: Mapped[ChatType] = mapped_column()
-    next_fire_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, default=func.now())
     channel_schedule_preference: Mapped["ChannelSchedulePreference"] = relationship("ChannelSchedulePreference",
                                                                                     back_populates="channel",
                                                                                     uselist=False, lazy="noload")
@@ -89,6 +88,18 @@ class Chat(Base):
                                                       backref="target_chats",
                                                       lazy="noload"
                                                       )
+
+    @property
+    def next_fire_time(self) -> datetime:
+        schedule_preference = self.channel_schedule_preference
+        if schedule_preference is not None:
+            match schedule_preference.interval_unit:
+                case IntervalType.HOUR:
+                    return get_next_n_hours(schedule_preference.interval_value, floored=True)
+                # TODO doesn't handle cases like '2 days' although i doubt i need it
+                case IntervalType.DAY:
+                    return next_fire_time(schedule_preference.time_of_day, schedule_preference.timezone)
+        return get_now()
 
     # target_Chats: Mapped['list[Chat]'] = relationship(secondary=Chat_mapping, back_populates='source_chats',
     #                                                         primaryjoin="Chat.id==Chat.target_chat_id",
@@ -123,8 +134,7 @@ class Post(Base):
     status: Mapped[PostStatus] = mapped_column(default=PostStatus.PENDING)
     is_album: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: get_now())
-    scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True,
-                                                             default=lambda: get_next_n_hours(1))
+    scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     source_chat: Mapped['Chat'] = relationship(Chat, lazy="noload",
                                                primaryjoin=Chat.id == foreign(source_chat_id))

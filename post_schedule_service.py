@@ -11,7 +11,7 @@ from bot import BotWrapper
 from db.database import session_maker
 from db.models import PostStatus, Post
 from db.repo import find_post_with_target_channels, update_post_status, find_expired_posts
-from utils import every_minute_at_0
+from utils import get_now
 
 scheduler = None | Scheduler
 jobs = defaultdict(list)
@@ -29,25 +29,10 @@ async def send_post(session: AsyncSession, bot_wrapper: BotWrapper, post: Post):
         for chat in post.target_chats:
             await bot_wrapper.copy_message(post.source_message_id, post.source_chat_id,
                                            chat.id)
-    await update_post_status(session, post.id, PostStatus.POSTED)
+    post.status = PostStatus.POSTED
+    post.posted_at = get_now()
+
     await session.commit()
-
-
-async def schedule_message(bot_wrapper: BotWrapper, post_id: int):
-    # TODO kludge for scheduler creation as it needs a running event loop and connot be created during import
-    global scheduler
-    async with session_maker() as session:
-        existing_post = await find_post_with_target_channels(session, post_id)
-        if existing_post is not None and len(existing_post) > 0 and scheduler is not None:
-            for post in existing_post:
-                logging.info(f"Scheduling post {post.post_id} to be sent at {post.scheduled_at}")
-                pending_jobs = jobs[post.post_id]
-                if pending_jobs is not None:
-                    logging.info(f"Found pending jobs for post {post.post_id}, rescheduling...")
-                    for job in pending_jobs:
-                        scheduler.cancel(job)
-                job = scheduler.once(post.scheduled_at, send_post, args=(session, bot_wrapper, post))
-                jobs[post.post_id].append(job)
 
 
 async def run_schedule_service(bot_wrapper: BotWrapper):
@@ -56,7 +41,9 @@ async def run_schedule_service(bot_wrapper: BotWrapper):
         async with session_maker() as session:
             expired_posts = await find_expired_posts(session)
             logging.info(f"Found {len(expired_posts)} expired posts")
+            # TODO make it parallel
             for post in expired_posts:
+                # TODO check next_fire_time
                 await send_post(session, bot_wrapper, post)
 
     while True:

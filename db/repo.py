@@ -49,11 +49,12 @@ async def find_post_with_target_channels(session: AsyncSession, post_id: int):
 
 async def find_expired_posts(session: AsyncSession) -> Sequence[Post]:
     q = (select(Post)
-         .options(selectinload(Post.target_chats))
-         .options(selectinload(Post.assets))
+         .options(joinedload(Post.source_chat).joinedload(Chat.channel_schedule_preference))
+         .options(joinedload(Post.target_chats).joinedload(Chat.channel_schedule_preference))
+         .options(joinedload(Post.assets))
          .where(and_(Post.scheduled_at <= now(), Post.status == PostStatus.PENDING)))
     results = await session.execute(q)
-    return results.scalars().all()
+    return results.scalars().unique().all()
 
 
 async def update_channel_schedule_preferences(session: AsyncSession, channel_id: int,
@@ -145,6 +146,11 @@ async def find_channel_by_username_or_id(session: AsyncSession, username_or_id: 
 async def find_channel_by_id(session: AsyncSession, channel_id: int) -> Optional[Chat]:
     result = await session.execute(select(Chat).where(Chat.id == channel_id))
     return result.scalars().first()
+
+
+async def find_channels_by_id(session: AsyncSession, channel_ids: list[int]) -> Sequence[Chat]:
+    result = await session.execute(select(Chat).where(Chat.id.in_(channel_ids)))
+    return result.scalars().all()
 
 
 async def remove_channel_or_group(session: AsyncSession, chat_id: int) -> int:
