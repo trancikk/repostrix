@@ -1,11 +1,14 @@
+from datetime import time
 from typing import Optional, Sequence
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased, selectinload
+from sqlalchemy.orm import selectinload
 from sqlalchemy.sql.functions import now
 
-from db.models import Asset, Post, ChatType, Chat, ChatMapping, PostStatus
+from db.models import Asset, Post, ChatType, Chat, PostStatus, IntervalType, \
+    ChannelSchedulePreference
 from dto import AssetDto
 from utils import get_next_n_hours
 
@@ -51,6 +54,34 @@ async def find_expired_posts(session: AsyncSession) -> Sequence[Post]:
          .where(and_(Post.scheduled_at <= now(), Post.status == PostStatus.PENDING)))
     results = await session.execute(q)
     return results.scalars().all()
+
+
+async def update_channel_schedule_preferences(session: AsyncSession, channel_id: int,
+                                              interval_unit: IntervalType = IntervalType.HOUR,
+                                              interval_value: int = 1, timezone: ZoneInfo = ZoneInfo("UTC"),
+                                              selected_times: list[time] | None = None) -> None:
+    existing_channel = await session.execute(select(Chat).where(Chat.id == channel_id))
+    if existing_channel is not None:
+        time_of_day = selected_times if selected_times is not None else []
+        schedule = ChannelSchedulePreference(channel_id=channel_id, interval_unit=interval_unit,
+                                             interval_value=interval_value, timezone=timezone, time_of_day=time_of_day)
+        session.add(schedule)
+        await session.flush()
+
+
+# async def determine_post_schedule(session: AsyncSession, chat_id: int):
+#     chat_result = await session.execute(select(Chat).where(Chat.id == chat_id))
+#     chat = chat_result.scalars().first()
+#     next_schedule = get_now()
+#     if chat is not None:
+#         match chat.default_schedule_type:
+#             case ScheduleType.INTERVAL:
+#                 interval = chat.interval
+#
+#             case ScheduleType.FIXED:
+#                 pass
+#             case _:
+#                 pass
 
 
 async def update_post_status(session: AsyncSession, post_id: int, post_status: PostStatus):

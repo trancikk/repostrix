@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 
 def get_now() -> datetime:
@@ -41,3 +42,27 @@ def every_minute_at_0(f):
             await asyncio.sleep((next_minute - now).total_seconds())
             await f()
     return wrapper
+
+TZ_ABBREV_MAP = {
+    "UTC": "UTC",
+    "GMT": "Etc/GMT",
+    "CET": "Europe/Berlin",
+    "EET": "Europe/Athens",
+    "EST": "America/New_York",  # Eastern Standard Time
+    "EDT": "America/New_York",  # Eastern Daylight Time
+    "CST": "America/Chicago",   # ⚠ could also mean China
+    "CDT": "America/Chicago",
+    "MST": "America/Denver",
+    "MDT": "America/Denver",
+    "PST": "America/Los_Angeles",
+    "PDT": "America/Los_Angeles",
+}
+
+def resolve_timezone(tz_name: str) -> ZoneInfo | None:
+    tz_name = tz_name.strip().upper()
+    if tz_name in TZ_ABBREV_MAP:
+        return ZoneInfo(TZ_ABBREV_MAP[tz_name])
+    try:
+        return ZoneInfo(tz_name)  # fallback to full IANA string
+    except Exception:
+        return None

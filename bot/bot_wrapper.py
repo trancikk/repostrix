@@ -5,6 +5,7 @@ from aiogram.types import MediaUnion, ChatIdUnion, BotCommand, BotCommandScopeDe
     BotCommandScopeAllChatAdministrators, BotCommandScopeAllGroupChats
 
 from bot.middlewares import BotWrapperMiddleware
+from bot.routes import all_routes, all_commands
 from config import settings
 
 
@@ -15,6 +16,8 @@ class BotWrapper:
     async def start_bot(self, dp: Dispatcher) -> None:
         dp.callback_query.middleware(BotWrapperMiddleware(self))
         dp.message.middleware(BotWrapperMiddleware(self))
+        for route in all_routes:
+            dp.include_router(route)
         await self.setup_bot_commands()
         await dp.start_polling(self.bot)
 
@@ -31,6 +34,7 @@ class BotWrapper:
             BotCommand(command="settings", description="Adjust preferences"),
             BotCommand(command="register", description="Register new channel"),
         ]
+        commands.extend(all_commands)
         await self.bot.set_my_commands(commands, scope=BotCommandScopeDefault())
         await self.bot.set_my_commands(commands, scope=BotCommandScopeAllChatAdministrators())
         await self.bot.set_my_commands(commands, scope=BotCommandScopeAllGroupChats())

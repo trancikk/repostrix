@@ -1,45 +1,15 @@
 import logging
-from collections import defaultdict
 
-from aiogram import Dispatcher, html, F
+from aiogram import Dispatcher, html
 from aiogram.enums import ChatType as ChatTypeTelegram
-from aiogram.filters import CommandStart, Command
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, ChatMemberUpdated, ChatMemberLeft, CallbackQuery
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.filters import CommandStart
+from aiogram.types import Message, ChatMemberUpdated, ChatMemberLeft
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot import BotWrapper
 from bot.middlewares import DbSessionMiddleware, AlbumMiddleware
 from db.database import session_maker
 from db.models import ChatType
-from db.repo import create_post_from_message, add_new_channel_or_group, remove_channel_or_group, \
-    find_channel_by_username_or_id, add_channel_mapping, update_post_schedule, find_post_with_target_channels
-from post_schedule_service import schedule_message
-from utils import get_not_empty_string
-
-time_table = {
-    "Next 1 mins": 1 / 60,
-    "Next 5 mins": 1 / 12,
-    "Next 10 mins": 1 / 6,
-    "Next 30 mins": 1 / 2,
-    "Next 2 hours": 2,
-    "Next 3 hours": 3,
-    "Next 4 hours": 4,
-    "Next 6 hours": 6,
-    "Next 12 hours": 12,
-    "Next day": 24,
-}
-
-
-def get_time_table_kb(post_id: int):
-    builder = InlineKeyboardBuilder()
-    for i, v in time_table.items():
-        builder.button(text=i, callback_data=f"schedule:{post_id}-{v}")
-    builder.adjust(3)
-    return builder.as_markup()
-
+from db.repo import add_new_channel_or_group, remove_channel_or_group
 
 dp = Dispatcher()
 dp.message.middleware(DbSessionMiddleware(session_maker=session_maker))
@@ -47,39 +17,6 @@ dp.message.middleware(AlbumMiddleware())
 dp.callback_query.middleware(DbSessionMiddleware(session_maker=session_maker))
 dp.chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
 dp.my_chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
-
-
-class ChannelRegistrationForm(StatesGroup):
-    name_input = State()
-
-
-async def register_channel(message: Message, channel_name_or_id: str | int, session: AsyncSession):
-    existing_channel = await find_channel_by_username_or_id(session, channel_name_or_id)
-    if existing_channel is not None:
-        # TODO check if the user is admin
-        await add_channel_mapping(session, message.chat.id, existing_channel.id)
-        return await message.reply(
-            f"Channel {channel_name_or_id} has been mapped to this chat. You can send your posts here")
-    else:
-        return await message.reply("Please add Bot to admins first to the target channel.")
-
-
-@dp.message(Command('register'))
-async def register_new_channel(message: Message, session: AsyncSession, state: FSMContext):
-    args = message.text.split(' ')
-    if len(args) < 2:
-        await state.set_state(ChannelRegistrationForm.name_input)
-        return await message.answer("Please provide channel name or ID")
-    else:
-        channel_name_or_id = args[1].strip().replace('@', '').lower()
-        return await register_channel(message, channel_name_or_id, session)
-
-
-@dp.message(ChannelRegistrationForm.name_input)
-async def register_new_channel_(message: Message, session: AsyncSession, state: FSMContext):
-    channel_name = message.text.strip().replace('@', '').lower()
-    await state.clear()
-    return await register_channel(message, channel_name, session)
 
 
 @dp.message(CommandStart())
@@ -121,43 +58,12 @@ async def register_new_chat(event: ChatMemberUpdated, session: AsyncSession):
                 if chat_type == ChatType.GROUP:
                     return await event.answer(
                         "To register (connect) a new channel linked to this group, type in /register &lt;channel_name&gt; or /register &lt;channel_id&gt;")
-                return None
-
-    # @dp.channel_post()
     return None
 
 
 # async def on_channel_post_handler(message: Message) -> None:
 #     print(message)
 
-@dp.message(F.text | F.video | F.audio | F.photo | F.caption | F.media_group_id)
-async def save_message(message: Message, session: AsyncSession, album: list[Message], bot_wrapper: BotWrapper) -> None:
-    photos = [item.photo[-1].file_id for item in album]
-    # TODO store user info to determine whether they are still admin when post is about to be sent
-    text = get_not_empty_string(message.html_text, message.caption)
-    created_post = await create_post_from_message(session, source_message_id=message.message_id,
-                                                  source_chat_id=message.chat.id, text=text, files=photos,
-                                                  is_album=len(photos) > 0)
-    logging.info(f"Created new post: {created_post} from {message.chat.title} ({message.chat.id})")
-    # await schedule_message(bot_wrapper, created_post.id)
-    await message.answer("Post saved. What time do you want to post it? Default is next hour",
-                         reply_markup=get_time_table_kb(created_post.id))
 
 
-@dp.callback_query(F.data.startswith('schedule'))
-async def handle_schedule_update(callback_data: CallbackQuery, session: AsyncSession, bot_wrapper: BotWrapper) -> None:
-    try:
-        data = callback_data.data.split(':')[-1]
-        if data is not None:
-            post_id, delta = data.split('-')
-            if post_id is not None and delta is not None:
-                updated_post = await update_post_schedule(session, int(post_id), float(delta))
-                await session.commit()
-                if updated_post is not None:
-                    # await schedule_message(bot_wrapper, updated_post.id)
-                    logging.info(f"Scheduled post {post_id} to {updated_post.scheduled_at}")
-                    await callback_data.message.answer(f"Scheduled post will be posted in the next {delta} hours")
-    except Exception as e:
-        logging.error(f"Error during schedule callback handling: {e}")
-        logging.exception(e)
-        await callback_data.message.answer(f"Something went wrong.")
+
