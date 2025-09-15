@@ -41,7 +41,6 @@ async def save_message(message: Message, session: AsyncSession, album: list[Mess
                                                   source_chat_id=message.chat.id, text=text, files=photos,
                                                   is_album=len(photos) > 0)
     logging.info(f"Created new post: {created_post} from {message.chat.title} ({message.chat.id})")
-    # await schedule_message(bot_wrapper, created_post.id)
     await message.answer("Post saved. What time do you want to post it? Default is next hour",
                          reply_markup=get_time_table_kb(created_post.id))
 

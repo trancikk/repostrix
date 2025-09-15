@@ -78,7 +78,9 @@ class Chat(Base):
     username: Mapped[Optional[str]] = mapped_column(nullable=True)
     chat_type: Mapped[ChatType] = mapped_column()
     next_fire_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, default=func.now())
-
+    channel_schedule_preference: Mapped["ChannelSchedulePreference"] = relationship("ChannelSchedulePreference",
+                                                                                    back_populates="channel",
+                                                                                    uselist=False, lazy="noload")
     source_chats: Mapped[list['Chat']] = relationship("Chat",
                                                       uselist=True,
                                                       secondary=ChatMapping,
@@ -97,7 +99,7 @@ class ChannelSchedulePreference(Base):
     __tablename__ = "channel_schedule_preference"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     channel_id: Mapped[int] = mapped_column(ForeignKey("chat.id"))
-    channel = relationship("Chat", foreign_keys=[channel_id], backref="channel_schedule_preferences")
+    channel = relationship("Chat", foreign_keys=[channel_id], back_populates="channel_schedule_preference")
     interval_unit: Mapped[IntervalType] = mapped_column(default=IntervalType.HOUR)
     interval_value: Mapped[int] = mapped_column(default=0, nullable=True)
     time_of_day: Mapped[list[time]] = mapped_column(ARRAY(Time))

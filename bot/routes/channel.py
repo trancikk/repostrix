@@ -1,6 +1,7 @@
 import logging
 import re
 from datetime import time, datetime
+from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -11,7 +12,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import IntervalType
-from db.repo import find_channel_by_username_or_id, add_channel_mapping
+from db.repo import find_channel_by_username_or_id, add_channel_mapping, update_channel_schedule_preferences
 from utils import resolve_timezone
 
 channel_router = Router(name='channel')
@@ -80,17 +81,22 @@ async def register_new_channel_via_state(message: Message, session: AsyncSession
     return await _register_channel(message, channel_name, session, state)
 
 
-async def update_channel_schedule_preferences(session: AsyncSession, state: FSMContext):
+async def update_channel_schedule_pref(session: AsyncSession, state: FSMContext):
     data = await state.get_data()
-    interval = data['interval']
-    interval_unit = data['interval_unit']
-    timezone = data['timezone']
-    times = data['times']
-    print(interval, interval_unit, timezone, times)
+    channel_id = data.get('channel_id')
+    interval = data.get('interval')
+    interval_unit = data.get('interval_unit')
+    timezone = data.get('timezone')
+    times = data.get('times')
+    await state.clear()
+    logging.info(f"Updating channel schedule pref: each {interval} {interval_unit} in {timezone}, times: {times}")
+    await update_channel_schedule_preferences(session=session, channel_id=channel_id, interval_value=interval,
+                                              interval_unit=interval_unit, timezone=timezone, selected_times=times)
 
 
-@channel_router.message(Command('schedule_settings'))
+@channel_router.message(Command(commands=['schedule_settings']))
 async def register_new_channel_via_command(message: Message, state: FSMContext):
+    await state.update_data(channel_id=message.chat.id)
     await state.set_state(ChannelRegistrationForm.interval_input)
     return await message.answer("Sure, lets change schedule preferences. How often do you want posts to be sent?",
                                 reply_markup=scheduling_kb)
@@ -98,7 +104,7 @@ async def register_new_channel_via_command(message: Message, state: FSMContext):
 
 @channel_router.callback_query(ChannelRegistrationForm.interval_input)
 @channel_router.callback_query(F.data.startswith('schedule_selection'))
-async def handle_interval_input(callback_data: CallbackQuery, state: FSMContext):
+async def handle_interval_input(callback_data: CallbackQuery, session: AsyncSession, state: FSMContext):
     data = callback_data.data.split(':')[-1]
     if data is not None:
         match data:
@@ -108,9 +114,9 @@ async def handle_interval_input(callback_data: CallbackQuery, state: FSMContext)
                 return await callback_data.message.answer(
                     "Please provide times you want your posts to be scheduled in format HH24:MM, HH24:MM, ...")
             case y:
-                await state.update_data(interval=int(y), interval_unit=IntervalType.HOUR)
-                await state.set_state(ChannelRegistrationForm.timezone_input)
-                return await callback_data.message.answer("Please provide desired timezone (default: UTC)")
+                await state.update_data(interval=int(y), interval_unit=IntervalType.HOUR, timezone=ZoneInfo('UTC'))
+                await update_channel_schedule_pref(session, state)
+                await callback_data.message.answer("Thank you, your schedule preferences has been saved!")
     return None
 
 
@@ -137,5 +143,5 @@ async def handle_schedule_tz(message: Message, session: AsyncSession, state: FSM
         return await message.answer("Please provide a valid timezone (like PST and so on)")
     else:
         await state.update_data(timezone=tz)
-        await update_channel_schedule_preferences(session, state)
+        await update_channel_schedule_pref(session, state)
         return await message.answer("Your schedule preferences has been saved!")

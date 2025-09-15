@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.sql.functions import now
 
 from db.models import Asset, Post, ChatType, Chat, PostStatus, IntervalType, \
@@ -60,12 +60,23 @@ async def update_channel_schedule_preferences(session: AsyncSession, channel_id:
                                               interval_unit: IntervalType = IntervalType.HOUR,
                                               interval_value: int = 1, timezone: ZoneInfo = ZoneInfo("UTC"),
                                               selected_times: list[time] | None = None) -> None:
-    existing_channel = await session.execute(select(Chat).where(Chat.id == channel_id))
+    q = (select(Chat)
+         .options(joinedload(Chat.channel_schedule_preference))
+         .where(Chat.id == channel_id))
+    results = await session.execute(q)
+    existing_channel = results.scalars().first()
     if existing_channel is not None:
         time_of_day = selected_times if selected_times is not None else []
-        schedule = ChannelSchedulePreference(channel_id=channel_id, interval_unit=interval_unit,
-                                             interval_value=interval_value, timezone=timezone, time_of_day=time_of_day)
-        session.add(schedule)
+        if existing_channel.channel_schedule_preference is not None:
+            existing_channel.channel_schedule_preference.interval_value = interval_value
+            existing_channel.channel_schedule_preference.interval_unit = interval_unit
+            existing_channel.channel_schedule_preference.timezone = timezone
+            existing_channel.channel_schedule_preference.time_of_day = time_of_day
+        else:
+            schedule = ChannelSchedulePreference(channel_id=channel_id, interval_unit=interval_unit,
+                                                 interval_value=interval_value, timezone=timezone,
+                                                 time_of_day=time_of_day)
+            session.add(schedule)
         await session.flush()
 
 
