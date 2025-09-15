@@ -86,6 +86,13 @@ def get_not_empty_string(*strings: str) -> str:
     return ""
 
 
+def nvl(default, *args):
+    for arg in args:
+        if arg is not None:
+            return arg
+    return default
+
+
 def every_minute_at_0(f):
     async def wrapper():
         while True:

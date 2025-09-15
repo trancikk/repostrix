@@ -77,6 +77,7 @@ class Chat(Base):
     name: Mapped[str] = mapped_column()
     username: Mapped[Optional[str]] = mapped_column(nullable=True)
     chat_type: Mapped[ChatType] = mapped_column()
+    last_posted_at: Mapped[datetime] = mapped_column(nullable=True, default=lambda: get_now())
     channel_schedule_preference: Mapped["ChannelSchedulePreference"] = relationship("ChannelSchedulePreference",
                                                                                     back_populates="channel",
                                                                                     uselist=False, lazy="noload")
@@ -90,7 +91,7 @@ class Chat(Base):
                                                       )
 
     @property
-    def next_fire_time(self) -> datetime:
+    def next_fire_time(self) -> datetime | None:
         schedule_preference = self.channel_schedule_preference
         if schedule_preference is not None:
             match schedule_preference.interval_unit:
@@ -98,8 +99,9 @@ class Chat(Base):
                     return get_next_n_hours(schedule_preference.interval_value, floored=True)
                 # TODO doesn't handle cases like '2 days' although i doubt i need it
                 case IntervalType.DAY:
-                    return next_fire_time(schedule_preference.time_of_day, schedule_preference.timezone)
-        return get_now()
+                    return next_fire_time(times=schedule_preference.time_of_day, now=self.last_posted_at,
+                                          tz=schedule_preference.timezone)
+        return None
 
     # target_Chats: Mapped['list[Chat]'] = relationship(secondary=Chat_mapping, back_populates='source_chats',
     #                                                         primaryjoin="Chat.id==Chat.target_chat_id",
