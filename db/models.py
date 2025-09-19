@@ -96,7 +96,7 @@ class Chat(Base):
         if schedule_preference is not None:
             match schedule_preference.interval_unit:
                 case IntervalType.HOUR:
-                    # if number is not integer, flooring is disabled
+                    # if the number is not integer, flooring is disabled
                     return get_next_n_hours(schedule_preference.interval_value, start_time=self.last_posted_at,
                                             floored=schedule_preference.interval_value.is_integer())
                 # TODO doesn't handle cases like '2 days' although i doubt i need it
@@ -124,9 +124,11 @@ class ChannelSchedulePreference(Base):
 class User(Base):
     __tablename__ = "user"
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column()
+    name: Mapped[str] = mapped_column(nullable=True)
     handle: Mapped[str] = mapped_column()
     timezone: Mapped[ZoneInfo] = mapped_column(ZoneInfoType, default=ZoneInfo('UTC'))
+    posts: Mapped[list["Post"]] = relationship("Post", back_populates="created_by_user", uselist=True,
+                                               passive_deletes=False, lazy="noload")
 
 
 class Post(Base):
@@ -138,6 +140,8 @@ class Post(Base):
     status: Mapped[PostStatus] = mapped_column(default=PostStatus.PENDING)
     is_album: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: get_now())
+    created_by_user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete='SET NULL'), nullable=True)
+    created_by_user = relationship(User, foreign_keys=[created_by_user_id], back_populates="posts", lazy="noload")
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     source_chat: Mapped['Chat'] = relationship(Chat, lazy="noload",

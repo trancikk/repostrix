@@ -4,11 +4,10 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, joinedload
-from sqlalchemy.sql.functions import now
+from sqlalchemy.orm import joinedload
 
 from db.models import Asset, Post, ChatType, Chat, PostStatus, IntervalType, \
-    ChannelSchedulePreference
+    ChannelSchedulePreference, User
 from dto import AssetDto
 from utils import get_next_n_hours
 
@@ -51,6 +50,7 @@ async def find_expired_posts(session: AsyncSession) -> Sequence[Post]:
     q = (select(Post)
          .options(joinedload(Post.source_chat).joinedload(Chat.channel_schedule_preference))
          .options(joinedload(Post.target_chats).joinedload(Chat.channel_schedule_preference))
+         .options(joinedload(Post.created_by_user))
          .options(joinedload(Post.assets))
          .where(and_(Post.status == PostStatus.PENDING)))
     results = await session.execute(q)
@@ -102,9 +102,12 @@ async def update_post_status(session: AsyncSession, post_id: int, post_status: P
     return post
 
 
-async def create_post_from_message(session: AsyncSession, source_message_id: int, source_chat_id: int, text: str = "",
+async def create_post_from_message(session: AsyncSession, source_message_id: int, source_chat_id: int,
+                                   author_id: int,
+                                   text: str = "",
                                    files: Optional[list[str]] = None, is_album=False) -> Post:
-    post = Post(source_message_id=source_message_id, source_chat_id=source_chat_id, text=text, is_album=is_album)
+    post = Post(source_message_id=source_message_id, source_chat_id=source_chat_id, text=text,
+                created_by_user_id=author_id, is_album=is_album)
     session.add(post)
     await session.flush()
     if files is not None and len(files) > 0:
@@ -167,3 +170,10 @@ async def add_channel_mapping(session: AsyncSession, source_chat_id: int, target
         if target_chat is not None:
             source_chat.source_chats.append(target_chat)
             target_chat.source_chats.append(source_chat)
+
+
+async def find_user(session, user_id: int) -> Optional[User]:
+    result = await session.execute(
+        select(User).where(User.id == user_id)
+    )
+    return result.scalar_one_or_none()

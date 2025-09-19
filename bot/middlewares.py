@@ -1,6 +1,12 @@
-from typing import Callable, Dict, Awaitable, Any
+import asyncio
+from typing import Callable, Any, Awaitable, Dict, List
 
+from aiogram import BaseMiddleware
+from aiogram.types import Message, TelegramObject, User as TgUser
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+
+from db.models import User  # your SQLAlchemy User model
+from db.repo import find_user
 
 
 class DbSessionMiddleware:
@@ -39,10 +45,6 @@ class BotWrapperMiddleware:
 
 
 # album_middleware.py
-import asyncio
-from typing import Callable, Any, Awaitable, Dict, List
-from aiogram import BaseMiddleware
-from aiogram.types import Message
 
 
 class AlbumMiddleware(BaseMiddleware):
@@ -79,3 +81,40 @@ class AlbumMiddleware(BaseMiddleware):
         # subsequent parts: just append and don't call handler now
         self._albums[mgid].append(event)
         return None  # swallow - handler will be called by the first message after sleep
+
+
+# TODO to think if i want to use it. GPT generated
+class SaveUserMiddleware(BaseMiddleware):
+    """
+    Middleware that ensures the Telegram user exists in the DB.
+    """
+
+    def __init__(self, session_factory):
+        # session_factory: a callable that returns AsyncSession (e.g. sessionmaker)
+        self.session_factory = session_factory
+
+    async def __call__(
+            self,
+            handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+            event: TelegramObject,
+            data: Dict[str, Any]
+    ) -> Any:
+        tg_user: TgUser | None = data.get("event_from_user")
+        if tg_user:
+            async with self.session_factory() as session:
+                # check if user exists
+                db_user = await find_user(session, tg_user.id)
+
+                if not db_user:
+                    db_user = User(
+                        id=tg_user.id,
+                        name=tg_user.first_name,
+                        handle=tg_user.username,
+                    )
+                    session.add(db_user)
+                    await session.commit()
+
+                # put the db_user into handler context
+                data["db_user"] = db_user
+
+        return await handler(event, data)

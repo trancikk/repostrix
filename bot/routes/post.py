@@ -38,6 +38,7 @@ async def save_message(message: Message, session: AsyncSession, album: list[Mess
     # TODO store user info to determine whether they are still admin when post is about to be sent
     text = get_not_empty_string(message.html_text, message.caption)
     created_post = await create_post_from_message(session, source_message_id=message.message_id,
+                                                  author_id=message.from_user.id,
                                                   source_chat_id=message.chat.id, text=text, files=photos,
                                                   is_album=len(photos) > 0)
     logging.info(f"Created new post: {created_post} from {message.chat.title} ({message.chat.id})")
