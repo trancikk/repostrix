@@ -1,10 +1,8 @@
 import asyncio
 import logging
-from collections import defaultdict
 from datetime import datetime, timedelta
 
 from aiogram.utils.media_group import MediaGroupBuilder
-from scheduler.asyncio import Scheduler
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import BotWrapper
