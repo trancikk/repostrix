@@ -13,9 +13,6 @@ from db.models import PostStatus, Post
 from db.repo import find_expired_posts
 from utils import get_now, nvl
 
-scheduler = None | Scheduler
-jobs = defaultdict(list)
-
 
 async def send_post(session: AsyncSession, bot_wrapper: BotWrapper, post: Post):
     # TODO might be time delay due to sending latency, to think if that might be an issue
@@ -71,14 +68,3 @@ async def run_schedule_service(bot_wrapper: BotWrapper):
         next_minute = (now.replace(second=0, microsecond=0) + timedelta(minutes=1))
         await asyncio.sleep((next_minute - now).total_seconds())
         await run_service()
-# global scheduler
-# scheduler = Scheduler(tzinfo=timezone.utc)
-# def run_loop():
-#     while True:
-#         scheduler.
-#         time.sleep(1)
-
-# t = Thread(target=run_loop, daemon=True)
-# t.start()
-# TODO kludge to wait for bot to start
-# await asyncio.sleep(3)
