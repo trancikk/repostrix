@@ -96,8 +96,9 @@ class Chat(Base):
         if schedule_preference is not None:
             match schedule_preference.interval_unit:
                 case IntervalType.HOUR:
+                    # if number is not integer, flooring is disabled
                     return get_next_n_hours(schedule_preference.interval_value, start_time=self.last_posted_at,
-                                            floored=True)
+                                            floored=schedule_preference.interval_value.is_integer())
                 # TODO doesn't handle cases like '2 days' although i doubt i need it
                 case IntervalType.DAY:
                     return next_fire_time(times=schedule_preference.time_of_day, now=self.last_posted_at,
