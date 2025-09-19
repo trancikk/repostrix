@@ -22,6 +22,9 @@ TWICE_PER_DAY = 'twice_per_day'
 
 schedule_selection = {
     "Immediately": 0,
+    "Each minute": 1 / 60,
+    "Each 5 min": 1 / 12,
+    "Each 30 min": 1 / 2,
     "Each Hour": 1,
     'Each 2 Hours': 2,
     'Each 6 Hours': 6,
@@ -35,7 +38,8 @@ channel_commands = [BotCommand(command="schedule_settings", description="Registe
 def get_scheduling_kb():
     builder = InlineKeyboardBuilder()
     for i, v in schedule_selection.items():
-        builder.button(text=i, callback_data=f"schedule_selection:{v}")
+        value = round(v, 4) if isinstance(v, float) else v
+        builder.button(text=i, callback_data=f"schedule_selection:{value}")
     builder.adjust(3)
     return builder.as_markup()
 
@@ -114,7 +118,7 @@ async def handle_interval_input(callback_data: CallbackQuery, session: AsyncSess
                 return await callback_data.message.answer(
                     "Please provide times you want your posts to be scheduled in format HH24:MM, HH24:MM, ...")
             case y:
-                await state.update_data(interval=int(y), interval_unit=IntervalType.HOUR, timezone=ZoneInfo('UTC'))
+                await state.update_data(interval=float(y), interval_unit=IntervalType.HOUR, timezone=ZoneInfo('UTC'))
                 await update_channel_schedule_pref(session, state)
                 await callback_data.message.answer("Thank you, your schedule preferences has been saved!")
     return None

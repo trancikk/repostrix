@@ -4,7 +4,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import ForeignKey, BigInteger, Table, Column, DateTime, Time, TypeDecorator, String
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, REAL
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, foreign
 
 from utils import get_now, get_next_n_hours, next_fire_time
@@ -77,7 +77,7 @@ class Chat(Base):
     name: Mapped[str] = mapped_column()
     username: Mapped[Optional[str]] = mapped_column(nullable=True)
     chat_type: Mapped[ChatType] = mapped_column()
-    last_posted_at: Mapped[datetime] = mapped_column(nullable=True, default=lambda: get_now())
+    last_posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, default=lambda: get_now())
     channel_schedule_preference: Mapped["ChannelSchedulePreference"] = relationship("ChannelSchedulePreference",
                                                                                     back_populates="channel",
                                                                                     uselist=False, lazy="noload")
@@ -96,7 +96,8 @@ class Chat(Base):
         if schedule_preference is not None:
             match schedule_preference.interval_unit:
                 case IntervalType.HOUR:
-                    return get_next_n_hours(schedule_preference.interval_value, floored=True)
+                    return get_next_n_hours(schedule_preference.interval_value, start_time=self.last_posted_at,
+                                            floored=True)
                 # TODO doesn't handle cases like '2 days' although i doubt i need it
                 case IntervalType.DAY:
                     return next_fire_time(times=schedule_preference.time_of_day, now=self.last_posted_at,
@@ -114,7 +115,7 @@ class ChannelSchedulePreference(Base):
     channel_id: Mapped[int] = mapped_column(ForeignKey("chat.id"))
     channel = relationship("Chat", foreign_keys=[channel_id], back_populates="channel_schedule_preference")
     interval_unit: Mapped[IntervalType] = mapped_column(default=IntervalType.HOUR)
-    interval_value: Mapped[int] = mapped_column(default=0, nullable=True)
+    interval_value: Mapped[float] = mapped_column(REAL, default=0, nullable=True)
     time_of_day: Mapped[list[time]] = mapped_column(ARRAY(Time))
     timezone: Mapped[ZoneInfo] = mapped_column(ZoneInfoType, default=ZoneInfo('UTC'))
 

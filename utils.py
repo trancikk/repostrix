@@ -1,6 +1,7 @@
 import asyncio
 from datetime import time
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 UTC = ZoneInfo("UTC")
@@ -14,10 +15,10 @@ def get_next_hour() -> datetime:
     return get_now().replace(second=0, microsecond=0, minute=0)
 
 
-def get_next_n_hours(n: float, floored: bool = False) -> datetime:
+def get_next_n_hours(n: float, start_time: Optional[datetime] = None, floored: bool = False) -> datetime:
     hours = int(n)
     mins = (n - hours) * 60
-    result = get_now() + timedelta(hours=hours, minutes=mins)
+    result = nvl(get_now(), start_time) + timedelta(hours=hours, minutes=mins)
     if floored:
         result = result.replace(second=0, microsecond=0, minute=0)
     return result

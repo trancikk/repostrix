@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from collections import defaultdict
-from datetime import timezone, datetime, timedelta
+from datetime import datetime, timedelta
 
 from aiogram.utils.media_group import MediaGroupBuilder
 from scheduler.asyncio import Scheduler
@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot import BotWrapper
 from db.database import session_maker
 from db.models import PostStatus, Post
-from db.repo import find_post_with_target_channels, update_post_status, find_expired_posts
-from utils import get_now, next_fire_time, nvl
+from db.repo import find_expired_posts
+from utils import get_now, nvl
 
 scheduler = None | Scheduler
 jobs = defaultdict(list)
@@ -45,7 +45,7 @@ async def send_post(session: AsyncSession, bot_wrapper: BotWrapper, post: Post):
     # TODO post should be 'posted' if it was posted at least to some channels (currently its updated even if its not posted)
     post.status = PostStatus.POSTED
     post.posted_at = now
-
+    post.source_chat.last_posted_at = now
     await session.commit()
 
 

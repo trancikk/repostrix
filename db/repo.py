@@ -52,7 +52,7 @@ async def find_expired_posts(session: AsyncSession) -> Sequence[Post]:
          .options(joinedload(Post.source_chat).joinedload(Chat.channel_schedule_preference))
          .options(joinedload(Post.target_chats).joinedload(Chat.channel_schedule_preference))
          .options(joinedload(Post.assets))
-         .where(and_(Post.scheduled_at <= now(), Post.status == PostStatus.PENDING)))
+         .where(and_(Post.status == PostStatus.PENDING)))
     results = await session.execute(q)
     return results.scalars().unique().all()
 
