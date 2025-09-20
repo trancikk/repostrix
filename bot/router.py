@@ -6,26 +6,13 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message, ChatMemberUpdated, ChatMemberLeft
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.middlewares import DbSessionMiddleware, AlbumMiddleware, SaveUserMiddleware
-from db.database import session_maker
 from db.models import ChatType
 from db.repo import add_new_channel_or_group, remove_channel_or_group
 
 dp = Dispatcher()
 
-# TODO move to setup function outside
-dp.message.middleware(DbSessionMiddleware(session_maker=session_maker))
-dp.message.middleware(SaveUserMiddleware(session_factory=session_maker))
-dp.message.middleware(AlbumMiddleware())
-dp.edited_message.middleware(DbSessionMiddleware(session_maker=session_maker))
-dp.edited_message.middleware(SaveUserMiddleware(session_factory=session_maker))
-dp.edited_message.middleware(AlbumMiddleware())
-dp.callback_query.middleware(DbSessionMiddleware(session_maker=session_maker))
-dp.callback_query.middleware(SaveUserMiddleware(session_factory=session_maker))
-dp.chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
-dp.my_chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
 
-
+# TODO move inside router
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
     """
