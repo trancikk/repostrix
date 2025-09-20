@@ -6,7 +6,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import ChatStatus, PostStatus
-from db.repo import create_post_from_message, update_post_schedule, find_channel_by_id, find_post
+from db.repo import create_or_update_post_from_message, update_post_schedule, find_channel_by_id, find_post
 from utils import get_not_empty_string
 
 CANCEL_REPOSTING = 'cancel'
@@ -26,6 +26,7 @@ time_table = {
 }
 
 post_router = Router(name="post")
+posts_to_save_filter = (F.text | F.video | F.audio | F.photo | F.caption | F.media_group_id) & ~F.text.startswith("/")
 
 
 def get_time_table_kb(post_id: int):
@@ -36,19 +37,27 @@ def get_time_table_kb(post_id: int):
     return builder.as_markup()
 
 
-@post_router.message((F.text | F.video | F.audio | F.photo | F.caption | F.media_group_id) & ~F.text.startswith("/"))
+@post_router.message(posts_to_save_filter)
+@post_router.edited_message(posts_to_save_filter)
 async def save_message(message: Message, session: AsyncSession, album: list[Message]) -> None:
     source_chat = await find_channel_by_id(session, message.chat.id)
     # TODO if possible and if i need to implement a custom filter
     if source_chat is not None and source_chat.status == ChatStatus.ENABLED:
         photos = [item.photo[-1].file_id for item in album]
         text = get_not_empty_string(message.html_text, message.caption)
-        created_post = await create_post_from_message(session, source_message_id=message.message_id,
-                                                      author_id=message.from_user.id,
-                                                      source_chat_id=message.chat.id, text=text, files=photos,
-                                                      is_album=len(photos) > 0)
-        logging.info(f"Created new post: {created_post} from {message.chat.title} ({message.chat.id})")
-        await message.reply("Post saved. What time do you want to post it? Default is next hour",
+        created_post, is_update = await create_or_update_post_from_message(session,
+                                                                           source_message_id=message.message_id,
+                                                                           author_id=message.from_user.id,
+                                                                           source_chat_id=message.chat.id, text=text,
+                                                                           files=photos,
+                                                                           is_album=len(photos) > 0)
+        if is_update:
+            logging.info(f"Update post.id: %s from chat.name (%s), chat.id: %s", created_post.id, message.chat.title,
+                         message.chat.id)
+        else:
+            logging.info(f"Created post.id: %s from chat.name (%s), chat.id: %s", created_post.id, message.chat.title,
+                         message.chat.id)
+        await message.reply("Post saved. What time do you want to post it? Default your group or channel preferences",
                             reply_markup=get_time_table_kb(created_post.id))
 
 

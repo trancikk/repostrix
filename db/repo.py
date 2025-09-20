@@ -102,21 +102,28 @@ async def update_post_status(session: AsyncSession, post_id: int, post_status: P
     return post
 
 
-async def create_post_from_message(session: AsyncSession, source_message_id: int, source_chat_id: int,
-                                   author_id: int,
-                                   text: str = "",
-                                   files: Optional[list[str]] = None, is_album=False) -> Post:
-    post = Post(source_message_id=source_message_id, source_chat_id=source_chat_id, text=text,
-                created_by_user_id=author_id, is_album=is_album)
-    session.add(post)
-    await session.flush()
-    if files is not None and len(files) > 0:
+async def create_or_update_post_from_message(session: AsyncSession, source_message_id: int, source_chat_id: int,
+                                             author_id: int,
+                                             text: str = "",
+                                             files: Optional[list[str]] = None, is_album=False) -> tuple[Post, bool]:
+    existing_post = await session.scalar(
+        select(Post).where(and_(Post.source_message_id == source_message_id, Post.source_chat_id == source_chat_id)))
+    is_update = False
+    if existing_post is None:
+        post = Post(source_message_id=source_message_id, source_chat_id=source_chat_id, text=text,
+                    created_by_user_id=author_id, is_album=is_album)
+        session.add(post)
+        await session.flush()
+    else:
+        post = existing_post
+        is_update = True
+    if files:
         for file in files:
             asset = Asset(file_id=file, post_id=post.id)
             session.add(asset)
         await session.flush()
         await session.refresh(post)
-    return post
+    return post, is_update
 
 
 async def update_post_schedule(session: AsyncSession, post_id: int, delta: float) -> Optional[Post]:
