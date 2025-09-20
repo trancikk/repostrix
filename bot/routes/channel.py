@@ -19,6 +19,7 @@ channel_router = Router(name='channel')
 
 EVERY_DAY = 'every_day'
 TWICE_PER_DAY = 'twice_per_day'
+EVERY_TWO_DAYS = 'every_2_days'
 
 schedule_selection = {
     "Immediately": 0,
@@ -28,8 +29,9 @@ schedule_selection = {
     "Each Hour": 1,
     'Each 2 Hours': 2,
     'Each 6 Hours': 6,
-    "Every Day": EVERY_DAY,
     "Twice per Day": TWICE_PER_DAY,
+    "Every Day": EVERY_DAY,
+    "Every 2 Days": EVERY_TWO_DAYS,
 }
 
 channel_commands = [BotCommand(command="schedule_settings", description="Register new channel")]
@@ -112,8 +114,9 @@ async def handle_interval_input(callback_data: CallbackQuery, session: AsyncSess
     data = callback_data.data.split(':')[-1]
     if data is not None:
         match data:
-            case x if x in (EVERY_DAY, TWICE_PER_DAY):
-                await state.update_data(interval=1, interval_unit=IntervalType.DAY, )
+            case x if x in (EVERY_DAY, TWICE_PER_DAY, EVERY_TWO_DAYS):
+                interval = 1 if x in (EVERY_DAY, TWICE_PER_DAY) else 2
+                await state.update_data(interval=interval, interval_unit=IntervalType.DAY, )
                 await state.set_state(ChannelRegistrationForm.time_input)
                 return await callback_data.message.answer(
                     "Please provide times you want your posts to be scheduled in format HH24:MM, HH24:MM, ...")
@@ -127,6 +130,7 @@ async def handle_interval_input(callback_data: CallbackQuery, session: AsyncSess
 @channel_router.message(ChannelRegistrationForm.time_input)
 async def handle_schedule_time_input(message: Message, state: FSMContext):
     try:
+        # TODO handle cases when user selects once or twice per day and provides few times
         provided_times = re.split(r"[,\s]+", message.text.strip())
         provided_parsed_times: list[time] = [datetime.strptime(txt, "%H:%M").time() for txt in provided_times]
         if provided_parsed_times is None or len(provided_times) == 0:

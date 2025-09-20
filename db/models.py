@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from enum import Enum
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -7,7 +7,7 @@ from sqlalchemy import ForeignKey, BigInteger, Table, Column, DateTime, Time, Ty
 from sqlalchemy.dialects.postgresql import ARRAY, REAL
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, foreign
 
-from utils import get_now, get_next_n_hours, next_fire_time
+from utils import get_now, get_next_n_hours, next_fire_time, get_next_n_days
 
 
 class ZoneInfoType(TypeDecorator):
@@ -99,10 +99,13 @@ class Chat(Base):
                     # if the number is not integer, flooring is disabled
                     return get_next_n_hours(schedule_preference.interval_value, start_time=self.last_posted_at,
                                             floored=schedule_preference.interval_value.is_integer())
-                # TODO doesn't handle cases like '2 days' although i doubt i need it
                 case IntervalType.DAY:
-                    return next_fire_time(times=schedule_preference.time_of_day, now=self.last_posted_at,
-                                          tz=schedule_preference.timezone)
+                    calculated_next_fire_time = next_fire_time(times=schedule_preference.time_of_day,
+                                                               now=self.last_posted_at,
+                                                               tz=schedule_preference.timezone)
+                    next_n_days = get_next_n_days(int(self.channel_schedule_preference.interval_value),
+                                                  self.last_posted_at)
+                    return calculated_next_fire_time.replace(day=next_n_days.day)
         return None
 
     # target_Chats: Mapped['list[Chat]'] = relationship(secondary=Chat_mapping, back_populates='source_chats',
