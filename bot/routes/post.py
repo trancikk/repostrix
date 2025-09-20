@@ -32,10 +32,9 @@ def get_time_table_kb(post_id: int):
     return builder.as_markup()
 
 
-@post_router.message(F.text | F.video | F.audio | F.photo | F.caption | F.media_group_id)
+@post_router.message((F.text | F.video | F.audio | F.photo | F.caption | F.media_group_id) & ~F.text.startswith("/"))
 async def save_message(message: Message, session: AsyncSession, album: list[Message]) -> None:
     photos = [item.photo[-1].file_id for item in album]
-    # TODO store user info to determine whether they are still admin when post is about to be sent
     text = get_not_empty_string(message.html_text, message.caption)
     created_post = await create_post_from_message(session, source_message_id=message.message_id,
                                                   author_id=message.from_user.id,
