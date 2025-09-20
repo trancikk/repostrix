@@ -23,7 +23,7 @@ async def process_post(session: AsyncSession, bot_wrapper: BotWrapper, post: Pos
         # naive checking if the publisher is still target channel admin
         author = post.created_by_user
         if author is not None and author.id in [admin.user.id for admin in admins if not admin.user.is_bot]:
-            next_fire_dt = nvl(now, chat.next_fire_time, post.source_chat.next_fire_time)
+            next_fire_dt = nvl(now, post.scheduled_at, chat.next_fire_time, post.source_chat.next_fire_time)
             if next_fire_dt > now:
                 logging.info("Firetime calculated for channel.id %s is: %s, skipping it now", chat.id, next_fire_dt)
                 continue
