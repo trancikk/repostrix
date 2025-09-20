@@ -38,10 +38,9 @@ async def command_start_handler(message: Message) -> None:
 
 @dp.my_chat_member()
 async def register_new_chat(event: ChatMemberUpdated, session: AsyncSession):
-    print(event.chat.type)
-    print(event)
     if event.bot.id == event.new_chat_member.user.id:
         chat_type = ChatType.OTHER
+        # TODO write matcher (mapper) util function
         match event.chat.type:
             case ChatTypeTelegram.GROUP:
                 chat_type = ChatType.GROUP

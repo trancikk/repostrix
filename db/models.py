@@ -47,6 +47,11 @@ class ChatType(Enum):
     OTHER = 4,
 
 
+class ChatStatus(Enum):
+    ENABLED = 0,
+    DISABLED = 1
+
+
 class PostStatus(Enum):
     PENDING = 0,
     POSTED = 1,
@@ -77,6 +82,7 @@ class Chat(Base):
     name: Mapped[str] = mapped_column()
     username: Mapped[Optional[str]] = mapped_column(nullable=True)
     chat_type: Mapped[ChatType] = mapped_column()
+    status: Mapped[ChatStatus] = mapped_column(nullable=False, default=ChatStatus.ENABLED)
     last_posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, default=lambda: get_now())
     channel_schedule_preference: Mapped["ChannelSchedulePreference"] = relationship("ChannelSchedulePreference",
                                                                                     back_populates="channel",

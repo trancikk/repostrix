@@ -129,15 +129,18 @@ async def update_post_schedule(session: AsyncSession, post_id: int, delta: float
 
 
 async def add_new_channel_or_group(session: AsyncSession, chat_id: int, channel_name: str,
-                                   channel_type: ChatType, username: Optional[str] = None):
+                                   channel_type: ChatType, username: Optional[str] = None) -> Chat:
     result = await session.execute(select(Chat).where(Chat.id == chat_id))
     existing_channel: Optional[Chat] = result.scalars().first()
     if existing_channel is not None:
         existing_channel.name = channel_name
         existing_channel.username = username
+        return existing_channel
     else:
         channel = Chat(id=chat_id, name=channel_name, chat_type=channel_type, username=username)
         session.add(channel)
+        await session.flush()
+        return channel
 
 
 async def find_channel_by_username_or_id(session: AsyncSession, username_or_id: str) -> Optional[Chat]:

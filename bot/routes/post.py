@@ -5,7 +5,8 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.repo import create_post_from_message, update_post_schedule
+from db.models import ChatStatus
+from db.repo import create_post_from_message, update_post_schedule, find_channel_by_id
 from utils import get_not_empty_string
 
 time_table = {
@@ -34,15 +35,18 @@ def get_time_table_kb(post_id: int):
 
 @post_router.message((F.text | F.video | F.audio | F.photo | F.caption | F.media_group_id) & ~F.text.startswith("/"))
 async def save_message(message: Message, session: AsyncSession, album: list[Message]) -> None:
-    photos = [item.photo[-1].file_id for item in album]
-    text = get_not_empty_string(message.html_text, message.caption)
-    created_post = await create_post_from_message(session, source_message_id=message.message_id,
-                                                  author_id=message.from_user.id,
-                                                  source_chat_id=message.chat.id, text=text, files=photos,
-                                                  is_album=len(photos) > 0)
-    logging.info(f"Created new post: {created_post} from {message.chat.title} ({message.chat.id})")
-    await message.answer("Post saved. What time do you want to post it? Default is next hour",
-                         reply_markup=get_time_table_kb(created_post.id))
+    source_chat = await find_channel_by_id(session, message.chat.id)
+    # TODO if possible and if i need to implement a custom filter
+    if source_chat is not None and source_chat.status == ChatStatus.ENABLED:
+        photos = [item.photo[-1].file_id for item in album]
+        text = get_not_empty_string(message.html_text, message.caption)
+        created_post = await create_post_from_message(session, source_message_id=message.message_id,
+                                                      author_id=message.from_user.id,
+                                                      source_chat_id=message.chat.id, text=text, files=photos,
+                                                      is_album=len(photos) > 0)
+        logging.info(f"Created new post: {created_post} from {message.chat.title} ({message.chat.id})")
+        await message.answer("Post saved. What time do you want to post it? Default is next hour",
+                             reply_markup=get_time_table_kb(created_post.id))
 
 
 @post_router.callback_query(F.data.startswith('schedule_post'))
