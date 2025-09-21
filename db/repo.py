@@ -52,7 +52,7 @@ async def find_expired_posts(session: AsyncSession) -> Sequence[Post]:
          .options(joinedload(Post.target_chats).joinedload(Chat.channel_schedule_preference))
          .options(joinedload(Post.created_by_user))
          .options(joinedload(Post.assets))
-         .where(and_(Post.status == PostStatus.PENDING)))
+         .where(and_(Post.status == PostStatus.PENDING), Post.created_by_user_id.is_not(None)))
     results = await session.execute(q)
     return results.scalars().unique().all()
 
@@ -102,21 +102,28 @@ async def update_post_status(session: AsyncSession, post_id: int, post_status: P
     return post
 
 
-async def create_post_from_message(session: AsyncSession, source_message_id: int, source_chat_id: int,
-                                   author_id: int,
-                                   text: str = "",
-                                   files: Optional[list[str]] = None, is_album=False) -> Post:
-    post = Post(source_message_id=source_message_id, source_chat_id=source_chat_id, text=text,
-                created_by_user_id=author_id, is_album=is_album)
-    session.add(post)
-    await session.flush()
-    if files is not None and len(files) > 0:
+async def create_or_update_post_from_message(session: AsyncSession, source_message_id: int, source_chat_id: int,
+                                             author_id: int,
+                                             text: str = "",
+                                             files: Optional[list[str]] = None, is_album=False) -> tuple[Post, bool]:
+    existing_post = await session.scalar(
+        select(Post).where(and_(Post.source_message_id == source_message_id, Post.source_chat_id == source_chat_id)))
+    is_update = False
+    if existing_post is None:
+        post = Post(source_message_id=source_message_id, source_chat_id=source_chat_id, text=text,
+                    created_by_user_id=author_id, is_album=is_album)
+        session.add(post)
+        await session.flush()
+    else:
+        post = existing_post
+        is_update = True
+    if files:
         for file in files:
             asset = Asset(file_id=file, post_id=post.id)
             session.add(asset)
         await session.flush()
         await session.refresh(post)
-    return post
+    return post, is_update
 
 
 async def update_post_schedule(session: AsyncSession, post_id: int, delta: float) -> Optional[Post]:
@@ -129,15 +136,18 @@ async def update_post_schedule(session: AsyncSession, post_id: int, delta: float
 
 
 async def add_new_channel_or_group(session: AsyncSession, chat_id: int, channel_name: str,
-                                   channel_type: ChatType, username: Optional[str] = None):
+                                   channel_type: ChatType, username: Optional[str] = None) -> Chat:
     result = await session.execute(select(Chat).where(Chat.id == chat_id))
     existing_channel: Optional[Chat] = result.scalars().first()
     if existing_channel is not None:
         existing_channel.name = channel_name
         existing_channel.username = username
+        return existing_channel
     else:
         channel = Chat(id=chat_id, name=channel_name, chat_type=channel_type, username=username)
         session.add(channel)
+        await session.flush()
+        return channel
 
 
 async def find_channel_by_username_or_id(session: AsyncSession, username_or_id: str) -> Optional[Chat]:
