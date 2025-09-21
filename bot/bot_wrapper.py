@@ -3,8 +3,9 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import MediaUnion, ChatIdUnion, BotCommand, BotCommandScopeDefault, \
     BotCommandScopeAllChatAdministrators, BotCommandScopeAllGroupChats
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from bot.middlewares import BotWrapperMiddleware
+from bot.middlewares import BotWrapperMiddleware, DbSessionMiddleware, SaveUserMiddleware, AlbumMiddleware
 from bot.routes import all_routes, all_commands
 from config import settings
 
@@ -13,9 +14,19 @@ class BotWrapper:
     def __init__(self):
         self.bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
-    async def start_bot(self, dp: Dispatcher) -> None:
+    async def start_bot(self, dp: Dispatcher, session_maker:  async_sessionmaker[AsyncSession]) -> None:
         dp.callback_query.middleware(BotWrapperMiddleware(self))
         dp.message.middleware(BotWrapperMiddleware(self))
+        dp.message.middleware(DbSessionMiddleware(session_maker=session_maker))
+        dp.message.middleware(SaveUserMiddleware(session_factory=session_maker))
+        dp.message.middleware(AlbumMiddleware())
+        dp.edited_message.middleware(DbSessionMiddleware(session_maker=session_maker))
+        dp.edited_message.middleware(SaveUserMiddleware(session_factory=session_maker))
+        dp.edited_message.middleware(AlbumMiddleware())
+        dp.callback_query.middleware(DbSessionMiddleware(session_maker=session_maker))
+        dp.callback_query.middleware(SaveUserMiddleware(session_factory=session_maker))
+        dp.chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
+        dp.my_chat_member.middleware(DbSessionMiddleware(session_maker=session_maker))
         for route in all_routes:
             dp.include_router(route)
         await self.setup_bot_commands()

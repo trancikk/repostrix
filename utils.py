@@ -24,6 +24,10 @@ def get_next_n_hours(n: float, start_time: Optional[datetime] = None, floored: b
     return result
 
 
+def get_next_n_days(n: int, start_time: Optional[datetime] = None) -> datetime:
+    return nvl(get_now(), start_time) + timedelta(days=n)
+
+
 def get_nearest_time(times: list[time], tz: ZoneInfo) -> datetime:
     cur_time = get_now().astimezone(tz)
     tz_aware_times = sorted([t.replace(tzinfo=tz) for t in times])
